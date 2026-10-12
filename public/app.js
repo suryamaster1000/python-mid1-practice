@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
 const supabase = createClient(
-  "https://psvqvwdaifieeohegqtd.supabase.co",
-  "sb_publishable_dbZHUBXPgIom0CPFqWtcDA_RuEguXc7",
+  "https://wewoaiuxnagmzkbhlsyt.supabase.co",
+  "sb_publishable_TfwYeoDBS9LZyHRckOvfrA_fEiOkDrH",
   { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
 );
 const authEmail = document.querySelector("#authEmail");
