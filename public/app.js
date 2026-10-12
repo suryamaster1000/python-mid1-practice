@@ -1,3 +1,19 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
+
+const supabase = createClient(
+  "https://psvqvwdaifieeohegqtd.supabase.co",
+  "sb_publishable_dbZHUBXPgIom0CPFqWtcDA_RuEguXc7",
+  { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
+);
+const authEmail = document.querySelector("#authEmail");
+const authPassword = document.querySelector("#authPassword");
+const authStatus = document.querySelector("#authStatus");
+const authNote = document.querySelector("#authNote");
+const signInBtn = document.querySelector("#signInBtn");
+const signUpBtn = document.querySelector("#signUpBtn");
+const signOutBtn = document.querySelector("#signOutBtn");
+let currentSession = null;
+
 const syllabusInput = document.querySelector("#syllabusInput");
 const fileInput = document.querySelector("#fileInput");
 const fileName = document.querySelector("#fileName");
@@ -10,6 +26,66 @@ const resultBadge = document.querySelector("#resultBadge");
 const tabs = [...document.querySelectorAll(".mode-tab")];
 let activeMode = "theory";
 let currentProblem = null;
+
+async function syncAuth(session) {
+  currentSession = session;
+  const signedIn = Boolean(session?.user);
+  authStatus.textContent = signedIn ? `Signed in: ${session.user.email || "student"}` : "Sign in to start studying";
+  authNote.textContent = signedIn ? "Your study sets are ready. Sign out when you finish." : "Create an account or sign in. Your password is handled by Supabase.";
+  authNote.classList.remove("auth-note-error");
+  authEmail.hidden = signedIn;
+  authPassword.hidden = signedIn;
+  signInBtn.hidden = signedIn;
+  signUpBtn.hidden = signedIn;
+  signOutBtn.hidden = !signedIn;
+  generateBtn.disabled = !signedIn;
+}
+
+async function authenticate(action) {
+  const email = authEmail.value.trim();
+  const password = authPassword.value;
+  if (!email || !password) {
+    authNote.textContent = "Enter your email and password.";
+    authNote.classList.add("auth-note-error");
+    return;
+  }
+  signInBtn.disabled = true;
+  signUpBtn.disabled = true;
+  try {
+    const result = action === "signup"
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+    if (result.error) throw result.error;
+    if (action === "signup" && !result.data.session) {
+      authNote.textContent = "Account created. Check your email to confirm it, then sign in.";
+    } else {
+      await syncAuth(result.data.session);
+    }
+  } catch (error) {
+    authNote.textContent = error.message || "Could not sign in. Check your details and try again.";
+    authNote.classList.add("auth-note-error");
+  } finally {
+    signInBtn.disabled = false;
+    signUpBtn.disabled = false;
+  }
+}
+
+signInBtn.addEventListener("click", () => authenticate("signin"));
+signUpBtn.addEventListener("click", () => authenticate("signup"));
+authPassword.addEventListener("keydown", event => {
+  if (event.key === "Enter") authenticate("signin");
+});
+signOutBtn.addEventListener("click", async () => {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    authNote.textContent = error.message;
+    authNote.classList.add("auth-note-error");
+  }
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  queueMicrotask(() => syncAuth(session));
+});
+supabase.auth.getSession().then(({ data }) => syncAuth(data.session));
 
 function setMessage(text, kind = "") {
   message.textContent = text;
@@ -72,13 +148,18 @@ generateBtn.addEventListener("click", async () => {
   resultBadge.textContent = "WORKING";
   setMessage("Reading your syllabus and preparing questions…");
   try {
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ syllabus, mode: activeMode, count: Number(countSelect.value) })
+    if (!currentSession?.access_token) throw new Error("Sign in before generating a study set.");
+    const { data, error } = await supabase.functions.invoke("generate-study-set", {
+      body: { syllabus, mode: activeMode, count: Number(countSelect.value) }
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Could not generate questions.");
+    if (error) {
+      let reason = error.message || "Could not generate questions.";
+      try {
+        const details = await error.context?.json();
+        if (details?.error) reason = details.error;
+      } catch {}
+      throw new Error(reason);
+    }
     message.hidden = true;
     resultBadge.textContent = activeMode === "code" ? "CHALLENGE READY" : `${data.questions?.length ?? 0} QUESTIONS`;
     if (activeMode === "code") renderCode(data);
@@ -216,7 +297,7 @@ function runCode(code, problem, button, output) {
   button.disabled = true;
   output.className = "run-output";
   output.textContent = "Starting the Python runner… first launch can take a few seconds.";
-  const worker = new Worker("/runner-worker.js");
+  const worker = new Worker("runner-worker.js");
   const timeout = setTimeout(() => {
     worker.terminate();
     button.disabled = false;
