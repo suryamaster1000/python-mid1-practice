@@ -30,8 +30,8 @@ let currentProblem = null;
 async function syncAuth(session) {
   currentSession = session;
   const signedIn = Boolean(session?.user);
-  authStatus.textContent = signedIn ? `Signed in: ${session.user.email || "student"}` : "Sign in to start studying";
-  authNote.textContent = signedIn ? "Your study sets are ready. Sign out when you finish." : "Create an account or sign in. Your password is handled by Supabase.";
+  authStatus.textContent = signedIn ? "Ready to study" : "Connecting securely…";
+  authNote.textContent = signedIn ? "Temporary anonymous session ready. This session stays in this browser." : "Connecting to a temporary student session. No email or password is needed.";
   authNote.classList.remove("auth-note-error");
   authEmail.hidden = signedIn;
   authPassword.hidden = signedIn;
@@ -85,7 +85,7 @@ signOutBtn.addEventListener("click", async () => {
 supabase.auth.onAuthStateChange((_event, session) => {
   queueMicrotask(() => syncAuth(session));
 });
-supabase.auth.getSession().then(({ data }) => syncAuth(data.session));
+supabase.auth.getSession().then(async ({ data, error }) => { if (error) throw error; let session = data.session; if (!session) { const { data: anonymousData, error: anonymousError } = await supabase.auth.signInAnonymously(); if (anonymousError) throw anonymousError; session = anonymousData.session; } await syncAuth(session); }).catch(error => { authStatus.textContent = "Connection needed"; authNote.textContent = error.message || "Anonymous access is not available right now."; authNote.classList.add("auth-note-error"); generateBtn.disabled = true; });
 
 function setMessage(text, kind = "") {
   message.textContent = text;
