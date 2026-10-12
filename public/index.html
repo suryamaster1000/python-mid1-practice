@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f8f3">
+  <title>Syllabus Study Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Syllabus Study Lab home"><span class="brand-mark">S</span><span>Syllabus<span class="brand-light">Study Lab</span></span></a>
+    <div class="top-meta"><span class="online-dot"></span><span>AI study workspace</span><a href="https://github.com/suryamaster1000/python-mid1-practice" target="_blank" rel="noreferrer">Project repo ↗</a></div>
+  </header>
+  <main class="shell">
+    <section class="intro">
+      <p class="eyebrow"><span>01</span> YOUR STUDY MATERIAL, MADE PRACTICEABLE</p>
+      <h1>Turn your syllabus into<br><em>a smarter study session.</em></h1>
+      <p class="intro-copy">Add your course outline. Get clear theory questions, a quick practice quiz, and coding exercises with helpful error feedback.</p>
+    </section>
+
+    <section class="workspace">
+      <aside class="syllabus-panel">
+        <div class="panel-heading"><div><span class="step-tag">STEP 01</span><h2>Your syllabus</h2></div><span class="panel-icon">↳</span></div>
+        <label class="upload-zone" for="fileInput">
+          <span class="upload-symbol">↑</span>
+          <strong>Choose a syllabus file</strong>
+          <span>TXT or Markdown, up to 1 MB</span>
+          <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+        </label>
+        <div class="or-divider"><span>OR PASTE TEXT</span></div>
+        <label class="sr-only" for="syllabusInput">Paste your syllabus</label>
+        <textarea id="syllabusInput" placeholder="Paste your syllabus here…&#10;&#10;For example:&#10;Unit I: Python fundamentals&#10;Variables, data types, operators, input and output…" maxlength="40000"></textarea>
+        <div class="input-footer"><span id="fileName">No file selected</span><span id="charCount">0 / 40,000</span></div>
+        <div class="generate-settings">
+          <label for="countSelect">Question count</label>
+          <select id="countSelect"><option value="4">4 questions</option><option value="6" selected>6 questions</option><option value="8">8 questions</option><option value="12">12 questions</option></select>
+        </div>
+        <button id="generateBtn" class="primary-btn" type="button"><span>Generate study set</span><span aria-hidden="true">↗</span></button>
+        <p class="privacy-note"><span>✳</span> Your syllabus is used for generation and isn’t saved by this app.</p>
+      </aside>
+
+      <section class="results-panel" aria-live="polite">
+        <div class="panel-heading results-heading"><div><span class="step-tag">STEP 02</span><h2>Choose your practice</h2></div><span id="resultBadge" class="result-badge">READY WHEN YOU ARE</span></div>
+        <nav class="mode-tabs" aria-label="Question type">
+          <button class="mode-tab selected" data-mode="theory" type="button"><span>01</span>Theory Q&amp;A</button>
+          <button class="mode-tab" data-mode="practice" type="button"><span>02</span>Practice quiz</button>
+          <button class="mode-tab" data-mode="code" type="button"><span>03</span>Code challenge</button>
+        </nav>
+        <div id="message" class="message" role="status">Add your syllabus, choose a practice type, then generate your first study set.</div>
+        <div id="results" class="results-list"></div>
+      </section>
+    </section>
+    <footer class="page-footer"><span>BUILT FOR ACTIVE RECALL</span><span>Practice a little. Remember a lot. <b>✳</b></span></footer>
+  </main>
+</body>
+</html>
