@@ -43,10 +43,6 @@ h1 em { color: var(--lime); font-style: normal; }
 .auth-copy { display: grid; gap: 3px; }
 .auth-copy strong { font: 700 12px var(--display); }
 .auth-copy>span:last-child { color: var(--muted); font-size: 10px; }
-.auth-controls { display: flex; align-items: center; gap: 7px; }
-.auth-controls[hidden] { display: none !important; }
-.auth-controls input { width: 155px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 9px; background: var(--paper); color: var(--ink); outline: none; }
-.auth-controls input:focus { border-color: #71a285; box-shadow: 0 0 0 3px #367a541a; }
 .auth-note-error { color: var(--red)!important; }
 .workspace { display: grid; grid-template-columns: minmax(285px, 365px) minmax(0, 1fr); max-width: 1240px; margin: auto; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: 0 12px 40px #17271f0a; }
 .syllabus-panel { padding: 25px; border-right: 1px solid var(--line); background: #fbfcfa; }

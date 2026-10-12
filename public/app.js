@@ -5,13 +5,8 @@ const supabase = createClient(
   "sb_publishable_TfwYeoDBS9LZyHRckOvfrA_fEiOkDrH",
   { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
 );
-const authEmail = document.querySelector("#authEmail");
-const authPassword = document.querySelector("#authPassword");
 const authStatus = document.querySelector("#authStatus");
 const authNote = document.querySelector("#authNote");
-const signInBtn = document.querySelector("#signInBtn");
-const signUpBtn = document.querySelector("#signUpBtn");
-const signOutBtn = document.querySelector("#signOutBtn");
 let currentSession = null;
 
 const syllabusInput = document.querySelector("#syllabusInput");
@@ -34,55 +29,8 @@ async function syncAuth(session) {
   authStatus.textContent = signedIn ? "Ready to study" : "Connecting securely…";
   authNote.textContent = signedIn ? "Temporary anonymous session ready. This session stays in this browser." : "Connecting to a temporary student session. No email or password is needed.";
   authNote.classList.remove("auth-note-error");
-  authEmail.hidden = signedIn;
-  authPassword.hidden = signedIn;
-  signInBtn.hidden = signedIn;
-  signUpBtn.hidden = signedIn;
-  signOutBtn.hidden = !signedIn;
   generateBtn.disabled = !signedIn;
 }
-
-async function authenticate(action) {
-  const email = authEmail.value.trim();
-  const password = authPassword.value;
-  if (!email || !password) {
-    authNote.textContent = "Enter your email and password.";
-    authNote.classList.add("auth-note-error");
-    return;
-  }
-  signInBtn.disabled = true;
-  signUpBtn.disabled = true;
-  try {
-    const result = action === "signup"
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
-    if (result.error) throw result.error;
-    if (action === "signup" && !result.data.session) {
-      authNote.textContent = "Account created. Check your email to confirm it, then sign in.";
-    } else {
-      await syncAuth(result.data.session);
-    }
-  } catch (error) {
-    authNote.textContent = error.message || "Could not sign in. Check your details and try again.";
-    authNote.classList.add("auth-note-error");
-  } finally {
-    signInBtn.disabled = false;
-    signUpBtn.disabled = false;
-  }
-}
-
-signInBtn.addEventListener("click", () => authenticate("signin"));
-signUpBtn.addEventListener("click", () => authenticate("signup"));
-authPassword.addEventListener("keydown", event => {
-  if (event.key === "Enter") authenticate("signin");
-});
-signOutBtn.addEventListener("click", async () => {
-  const { error } = await supabase.auth.signOut();
-  if (error) {
-    authNote.textContent = error.message;
-    authNote.classList.add("auth-note-error");
-  }
-});
 supabase.auth.onAuthStateChange((_event, session) => {
   queueMicrotask(() => syncAuth(session));
 });
