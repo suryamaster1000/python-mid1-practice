@@ -26,6 +26,7 @@ const resultBadge = document.querySelector("#resultBadge");
 const tabs = [...document.querySelectorAll(".mode-tab")];
 let activeMode = "theory";
 let currentProblem = null;
+let currentTestToken = null;
 
 async function syncAuth(session) {
   currentSession = session;
@@ -125,10 +126,13 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
   activeMode = tab.dataset.mode;
   tabs.forEach(item => item.classList.toggle("selected", item === tab));
   currentProblem = null;
+  currentTestToken = null;
   results.replaceChildren();
   resultBadge.textContent = "READY WHEN YOU ARE";
   setMessage(activeMode === "code"
-    ? "Generate a Python challenge from the programming topics in your syllabus."
+    ? "Generate a coding challenge in a language found in your syllabus, then submit your solution for AI feedback."
+    : activeMode === "test"
+      ? "Take a written assessment, submit your answers, and get criterion-based AI feedback."
     : activeMode === "practice"
       ? "Generate a multiple-choice quiz. Check each answer to see an explanation."
       : "Generate short-answer questions for active recall.");
@@ -161,11 +165,15 @@ generateBtn.addEventListener("click", async () => {
       throw new Error(reason);
     }
     message.hidden = true;
-    resultBadge.textContent = activeMode === "code" ? "CHALLENGE READY" : `${data.questions?.length ?? 0} QUESTIONS`;
-    if (activeMode === "code") renderCode(data);
+    resultBadge.textContent = activeMode === "code" ? (data.available === false ? "NO CODE TOPICS" : `${String(data.language || "CODE").toUpperCase()} CHALLENGE`) : `${data.questions?.length ?? 0} QUESTIONS`;
+    if (activeMode === "code") {
+      if (data.available === false) setMessage(data.reason || "No coding topic was found in this syllabus.", "error");
+      else renderCode(data);
+    }
+    else if (activeMode === "test") renderTest(data);
     else if (activeMode === "theory") renderTheory(data);
     else renderQuiz(data);
-    if (!results.childElementCount) throw new Error("The response did not contain questions. Try generating again.");
+    if (!results.childElementCount && !(activeMode === "code" && data.available === false)) throw new Error("The response did not contain questions. Try generating again.");
   } catch (error) {
     results.replaceChildren();
     resultBadge.textContent = "NEEDS ATTENTION";
@@ -202,6 +210,85 @@ function renderTheory(data) {
     card.append(toggle, answer);
     results.append(card);
   }
+}
+
+async function invokeFunction(body) {
+  const { data, error } = await supabase.functions.invoke("generate-study-set", { body });
+  if (error) {
+    let reason = error.message || "Could not complete this request.";
+    try {
+      const details = await error.context?.json();
+      if (details?.error) reason = details.error;
+    } catch {}
+    throw new Error(reason);
+  }
+  return data;
+}
+
+function renderTest(test) {
+  currentTestToken = test.testToken;
+  const heading = el("div", "assessment-intro");
+  heading.append(el("h3", "", test.title || "Written assessment"));
+  heading.append(el("p", "", test.summary || "Answer all questions, then submit for AI evaluation."));
+  heading.append(el("div", "assessment-meta", `${test.questions.length} questions · ${test.questions.reduce((sum, question) => sum + question.points, 0)} points · AI-evaluated practice`));
+  results.append(heading);
+  const answerFields = new Map();
+  for (const [index, question] of test.questions.entries()) {
+    const card = el("article", "question-card test-question");
+    const top = el("div", "question-top");
+    top.append(el("span", "question-num", String(index + 1).padStart(2, "0")));
+    top.append(el("span", "topic-pill", question.topic || "Assessment"));
+    top.append(el("span", "difficulty", `${question.points} points`));
+    card.append(top, el("h3", "", question.question || ""));
+    const answer = document.createElement("textarea");
+    answer.className = "written-answer";
+    answer.id = `test-answer-${question.id}`;
+    answer.placeholder = "Write your answer here…";
+    answer.maxLength = 8000;
+    answer.setAttribute("aria-label", `Answer for question ${index + 1}`);
+    answerFields.set(question.id, answer);
+    card.append(answer);
+    results.append(card);
+  }
+  const submit = el("button", "primary-btn submit-test", "Submit written test for AI evaluation");
+  submit.type = "button";
+  const gradePanel = el("section", "grade-panel");
+  gradePanel.hidden = true;
+  results.append(submit, gradePanel);
+  submit.addEventListener("click", async () => {
+    const answers = Object.fromEntries([...answerFields].map(([id, field]) => [id, field.value.trim()]));
+    if (Object.values(answers).every(answer => !answer)) {
+      setMessage("Write at least one answer before submitting your test.", "error");
+      return;
+    }
+    submit.disabled = true;
+    submit.textContent = "Evaluating your answers…";
+    setMessage("AI is checking your answers against the syllabus and grading criteria. This may take a few seconds.");
+    try {
+      const grade = await invokeFunction({ mode: "evaluate-test", testToken: currentTestToken, answers });
+      for (const field of answerFields.values()) field.disabled = true;
+      gradePanel.hidden = false;
+      const score = el("div", "grade-score");
+      score.append(el("strong", "", `${grade.score} / ${grade.totalPoints}`), el("span", "", `${grade.percent}% · AI practice estimate`));
+      gradePanel.append(score, el("p", "grade-overall", grade.overallFeedback || "Review the feedback for each question."));
+      for (const [index, question] of test.questions.entries()) {
+        const item = grade.results.find(result => result.id === question.id) || {};
+        const feedback = el("article", "grade-item");
+        feedback.append(el("strong", "grade-item-title", `Q${index + 1} · ${item.awardedPoints ?? 0}/${item.points ?? question.points} points`));
+        feedback.append(el("p", "", item.feedback || "Review the reference answer below."));
+        if (item.missingConcepts?.length) feedback.append(el("p", "grade-missing", `Review: ${item.missingConcepts.join(", ")}`));
+        if (item.referenceAnswer) feedback.append(el("p", "grade-reference", `Reference answer: ${item.referenceAnswer}`));
+        gradePanel.append(feedback);
+      }
+      resultBadge.textContent = `${grade.percent}% · ${grade.score}/${grade.totalPoints}`;
+      message.hidden = true;
+      submit.textContent = "Test submitted";
+    } catch (error) {
+      setMessage(error.message || "Could not evaluate your test. Please try again.", "error");
+      submit.disabled = false;
+      submit.textContent = "Submit written test for AI evaluation";
+    }
+  });
 }
 
 function renderQuiz(data) {
@@ -244,52 +331,98 @@ function renderQuiz(data) {
 
 function renderCode(problem) {
   currentProblem = problem;
-  if (!problem || problem.language !== "python" || !/^[A-Za-z_]\w*$/.test(problem.functionName || "")) {
-    throw new Error("The generated challenge had an unsupported language or function name. Please try again.");
-  }
+  if (!problem || !problem.challengeToken || !problem.language) throw new Error("The generated challenge is incomplete. Please try again.");
   const card = el("article", "code-card");
   const head = el("div", "code-card-head");
-  head.append(el("h3", "", problem.title || "Python challenge"), el("span", "topic-pill", problem.topic || "Python"));
+  head.append(el("h3", "", problem.title || `${problem.language.toUpperCase()} challenge`), el("span", "topic-pill", `${problem.language.toUpperCase()} · ${problem.topic || "Practice"}`));
   card.append(head, el("div", "code-prompt", problem.prompt || ""));
   const testList = el("div", "test-list");
-  (problem.tests || []).forEach((test, i) => testList.append(el("span", "test-chip", `Test ${i + 1} · ${test.description || "case"}`)));
-  card.append(testList);
-  const label = el("div", "editor-label", "main.py");
+  (problem.tests || []).forEach((test, i) => testList.append(el("span", "test-chip", `Example ${i + 1} · ${test.description || "case"}`)));
+  if (testList.childElementCount) card.append(testList);
+  const label = el("div", "editor-label", problem.fileName || "solution.txt");
   const editor = document.createElement("textarea");
   editor.className = "code-editor";
   editor.id = "codeEditor";
   editor.spellcheck = false;
   editor.autocapitalize = "off";
   editor.autocomplete = "off";
-  editor.setAttribute("aria-label", "Python code editor");
-  editor.value = problem.starterCode || `def ${problem.functionName}():\n    # Write your solution here\n    pass\n`;
+  editor.setAttribute("aria-label", `${problem.language} code editor`);
+  editor.maxLength = 30000;
+  editor.value = problem.starterCode || "";
   const actions = el("div", "editor-actions");
-  const run = el("button", "run-btn", "▶  Run test cases");
-  run.type = "button";
-  const note = el("span", "editor-note", "Runs in your browser");
-  actions.append(run, note);
-  const output = el("pre", "run-output");
-  const hintRow = el("div", "hint-row");
-  hintRow.hidden = true;
-  const hintBtn = el("button", "small-action", "Show a hint");
-  hintBtn.type = "button";
-  let hintIndex = 0;
-  hintBtn.addEventListener("click", () => {
-    hintRow.replaceChildren();
-    const hints = problem.hints || [];
-    if (!hints.length) { hintRow.hidden = false; hintRow.append(el("div", "hint", "Think about the input and output for the simplest case.")); return; }
-    hintRow.hidden = false;
-    hintRow.append(el("div", "hint", hints[Math.min(hintIndex, hints.length - 1)]));
-    hintIndex = Math.min(hintIndex + 1, hints.length);
+  const evaluate = el("button", "run-btn", "✳  Submit code for AI evaluation");
+  evaluate.type = "button";
+  actions.append(evaluate);
+  const note = el("span", "editor-note", problem.language === "python" ? "Run examples or ask AI for feedback" : "AI checks your solution against the challenge rubric");
+  actions.append(note);
+  card.append(label, editor, actions);
+
+  if (problem.language === "python" && problem.tests?.length) {
+    const localActions = el("div", "editor-actions");
+    const run = el("button", "answer-toggle", "▶ Run example tests");
+    run.type = "button";
+    const output = el("pre", "run-output");
+    localActions.append(run, el("span", "editor-note", "Runs locally in this browser"));
+    card.append(localActions, output);
+    run.addEventListener("click", () => runCode(editor.value, problem, run, output));
+  }
+
+  if (problem.language === "html") {
+    const preview = el("details", "html-preview");
+    preview.append(el("summary", "", "Preview your HTML"));
+    const frame = document.createElement("iframe");
+    frame.className = "html-preview-frame";
+    frame.title = "Isolated HTML preview";
+    frame.setAttribute("sandbox", "allow-scripts");
+    frame.srcdoc = "<p style='font:14px sans-serif;color:#68766e;padding:12px'>Your page preview appears here.</p>";
+    preview.append(frame);
+    const refresh = el("button", "answer-toggle", "Refresh preview");
+    refresh.type = "button";
+    refresh.addEventListener("click", () => { frame.srcdoc = editor.value; });
+    card.append(preview, refresh);
+  }
+
+  const status = el("div", "message", "AI feedback is an estimate for practice, not an official exam grade.");
+  const evaluation = el("section", "grade-panel code-grade");
+  evaluation.hidden = true;
+  card.append(status, evaluation);
+  evaluate.addEventListener("click", async () => {
+    if (!editor.value.trim()) { setMessage("Write some code before submitting it for feedback.", "error"); editor.focus(); return; }
+    evaluate.disabled = true;
+    evaluate.textContent = "AI is reviewing your solution…";
+    status.textContent = "Checking your work against the challenge, rubric, and syllabus level…";
+    status.className = "message";
+    evaluation.hidden = true;
+    evaluation.replaceChildren();
+    try {
+      const review = await invokeFunction({ mode: "evaluate-code", challengeToken: problem.challengeToken, source: editor.value });
+      evaluation.hidden = false;
+      const score = el("div", "grade-score");
+      score.append(el("strong", "", `${review.score}/100`), el("span", "", `${review.verdict} · AI practice estimate`));
+      evaluation.append(score, el("p", "grade-overall", review.overallFeedback || "Review the findings below."));
+      for (const item of review.findings || []) {
+        const finding = el("article", `code-finding ${item.severity || "suggestion"}`);
+        finding.append(el("strong", "", `${item.severity || "Feedback"}${item.line ? ` · Line ${item.line}` : ""}`));
+        finding.append(el("p", "", item.issue || "Review this part of the solution."), el("p", "finding-fix", item.fix || ""));
+        evaluation.append(finding);
+      }
+      if (review.strengths?.length) evaluation.append(el("p", "grade-strengths", `Working well: ${review.strengths.join(" · ")}`));
+      if (review.sampleSolution) {
+        const solution = el("details", "solution-block");
+        solution.append(el("summary", "", "View a sample solution after your attempt"), el("pre", "", review.sampleSolution));
+        evaluation.append(solution);
+      }
+      status.hidden = true;
+      resultBadge.textContent = `${review.score}/100 · AI FEEDBACK`;
+    } catch (error) {
+      status.textContent = error.message || "The AI could not review your code. Please try again.";
+      status.className = "message error";
+      status.hidden = false;
+    } finally {
+      evaluate.disabled = false;
+      evaluate.textContent = "✳  Submit code for AI evaluation";
+    }
   });
-  const solution = el("details", "solution-block");
-  solution.append(el("summary", "", "Reveal sample solution"));
-  const solutionCode = el("pre", "", problem.solution || "No solution was included.");
-  solution.append(solutionCode);
-  const extraActions = el("div", "editor-actions");
-  extraActions.append(hintBtn);
-  card.append(label, editor, actions, output, extraActions, hintRow, solution);
-  run.addEventListener("click", () => runCode(editor.value, problem, run, output));
   results.append(card);
 }
 

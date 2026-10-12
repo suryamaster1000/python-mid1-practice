@@ -1,22 +1,24 @@
 # Syllabus Study Lab
 
-A browser-based study app that turns syllabus text into theory questions, multiple-choice practice, and beginner Python coding challenges. Supabase handles student sign-in and securely calls OpenAI from an Edge Function. Python code runs in the browser with Pyodide; it is not sent to the server.
+Syllabus Study Lab turns a course outline into an LMS-style practice session. Students can use it without an email or password; Supabase creates a temporary anonymous session in the current browser.
 
-## One-time setup
+## Student activities
 
-1. In Supabase, open **Edge Functions → Secrets** for project `psvqvwdaifieeohegqtd` and add `OPENAI_API_KEY`. The key must stay in Supabase secrets; never add it to GitHub or browser code.
-2. In Supabase **Authentication → URL Configuration**, set the site URL to `https://suryamaster1000.github.io/python-mid1-practice/` and allow that URL for sign-up confirmation redirects.
-3. In GitHub, open **Settings → Pages** and set the build/deployment source to **GitHub Actions**. The workflow publishes the `public/` folder on pushes to `main`.
+- **Theory Q&A:** revise concepts with reference explanations.
+- **Written test:** write open-ended answers, submit them for criterion-based AI feedback, and review an estimated score, missing concepts, and reference answers. The answer key stays encrypted on the server until submission.
+- **Practice quiz:** answer syllabus-based multiple-choice questions with immediate explanations.
+- **Code practice:** generate a challenge in a language or markup topic found in the syllabus (Python, HTML, CSS, JavaScript, C, C++, Java, C#, PHP, or SQL). Submit code for rubric-based AI feedback with line references where possible. Python challenges can run generated examples in the browser; HTML challenges include an isolated preview.
 
-After the first workflow completes, the site is at https://suryamaster1000.github.io/python-mid1-practice/.
+AI scores are practice estimates, not official grades. Code review is model-based and does not compile or execute C++, Java, and other general-purpose languages. The separate Python example runner is the only code execution feature and runs in a browser worker.
 
-## Use the app
+## Requirements
 
-- Students create an account or sign in with email and password.
-- Paste a syllabus or upload a `.txt`/`.md` file (up to 1 MB).
-- Generate theory Q&A, a multiple-choice quiz, or one Python coding problem.
-- Reveal answers after attempting questions. Coding exercises report failing cases and Python errors, including line numbers when available.
+- A Supabase project with anonymous sign-ins enabled.
+- An OpenRouter API key saved as a Supabase Edge Function secret named `OPENROUTER_API_KEY`. The current deployed function also accepts the existing secret name `openrutor key`. Never add the API key to this repository or browser code.
+- GitHub Pages configured to deploy the `public/` directory through the included Actions workflow.
 
-## Limits
+The Edge Function source is in `supabase/functions/generate-study-set/index.ts`. Deploy it to the connected Supabase project after changing it. The static site publishes from `main` automatically.
 
-PDF/DOCX uploads and runners for languages other than Python are not included yet. The Python runtime is loaded from jsDelivr, so coding questions need an internet connection. Question generation requires a valid OpenAI API key configured as a Supabase Edge Function secret.
+## Privacy and session behavior
+
+Syllabus text, submitted test answers, and submitted code are sent to the Edge Function for AI generation or evaluation and are not saved by this app. Encrypted assessment and challenge tokens expire after one hour and are tied to the anonymous session that created them. Clearing browser data or switching browsers starts a new session.
