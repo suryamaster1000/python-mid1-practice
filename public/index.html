@@ -13,7 +13,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Syllabus Study Lab home"><span class="brand-mark">S</span><span>Syllabus<span class="brand-light">Study Lab</span></span></a>
+    <a class="brand" href="./" aria-label="Syllabus Study Lab home"><span class="brand-mark">S</span><span>Syllabus<span class="brand-light">Study Lab</span></span></a>
     <div class="top-meta"><span class="online-dot"></span><span>AI study workspace</span><a href="https://github.com/suryamaster1000/python-mid1-practice" target="_blank" rel="noreferrer">Project repo ↗</a></div>
   </header>
   <main class="shell">
@@ -23,6 +23,18 @@
       <p class="intro-copy">Add your course outline. Get clear theory questions, a quick practice quiz, and coding exercises with helpful error feedback.</p>
     </section>
 
+    <section class="auth-strip" aria-label="Student sign in">
+      <div class="auth-copy"><span class="step-tag">STUDENT ACCESS</span><strong id="authStatus">Sign in to start studying</strong><span id="authNote">Create an account or sign in. Your password is handled by Supabase.</span></div>
+      <div class="auth-controls">
+        <label class="sr-only" for="authEmail">Email address</label>
+        <input id="authEmail" type="email" autocomplete="email" placeholder="Email address">
+        <label class="sr-only" for="authPassword">Password</label>
+        <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Password">
+        <button id="signInBtn" class="small-action" type="button">Sign in</button>
+        <button id="signUpBtn" class="small-action signup-btn" type="button">Create account</button>
+        <button id="signOutBtn" class="small-action" type="button" hidden>Sign out</button>
+      </div>
+    </section>
     <section class="workspace">
       <aside class="syllabus-panel">
         <div class="panel-heading"><div><span class="step-tag">STEP 01</span><h2>Your syllabus</h2></div><span class="panel-icon">↳</span></div>
