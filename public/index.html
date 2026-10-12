@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/app.js" defer></script>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -23,18 +23,15 @@
       <p class="intro-copy">Add your course outline. Get clear theory questions, a quick practice quiz, and coding exercises with helpful error feedback.</p>
     </section>
 
-    <section class="auth-strip" aria-label="Student sign in">
-      <div class="auth-copy"><span class="step-tag">STUDENT ACCESS</span><strong id="authStatus">Sign in to start studying</strong><span id="authNote">Create an account or sign in. Your password is handled by Supabase.</span></div>
-      <div class="auth-controls">
-        <label class="sr-only" for="authEmail">Email address</label>
-        <input id="authEmail" type="email" autocomplete="email" placeholder="Email address">
-        <label class="sr-only" for="authPassword">Password</label>
-        <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="Password">
-        <button id="signInBtn" class="small-action" type="button">Sign in</button>
-        <button id="signUpBtn" class="small-action signup-btn" type="button">Create account</button>
-        <button id="signOutBtn" class="small-action" type="button" hidden>Sign out</button>
+    <section class="auth-strip" aria-label="Student access">
+      <div class="auth-copy"><span class="step-tag">STUDENT ACCESS</span><strong id="authStatus">Connecting securely…</strong><span id="authNote">Creating a temporary anonymous session. No account or password is needed.</span></div>
+      <div class="auth-controls" hidden aria-hidden="true">
+        <label for="authEmail">Email address</label><input id="authEmail" type="email" autocomplete="email">
+        <label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password">
+        <button id="signInBtn" type="button">Sign in</button><button id="signUpBtn" type="button">Create account</button><button id="signOutBtn" type="button" hidden>Sign out</button>
       </div>
     </section>
+
     <section class="workspace">
       <aside class="syllabus-panel">
         <div class="panel-heading"><div><span class="step-tag">STEP 01</span><h2>Your syllabus</h2></div><span class="panel-icon">↳</span></div>
