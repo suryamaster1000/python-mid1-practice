@@ -1,24 +1,22 @@
 # Syllabus Study Lab
 
-A study app that turns syllabus text into theory questions, multiple-choice practice, and Python coding exercises. The code challenge runner checks test cases in an isolated browser worker and reports incorrect output or Python errors with line information when available.
+A browser-based study app that turns syllabus text into theory questions, multiple-choice practice, and beginner Python coding challenges. Supabase handles student sign-in and securely calls OpenAI from an Edge Function. Python code runs in the browser with Pyodide; it is not sent to the server.
 
-## Run locally
+## One-time setup
 
-1. Install Node.js 20 or newer.
-2. Copy `.env.example` to `.env` and add your OpenAI API key to `OPENAI_API_KEY`.
-3. Run `npm start` and open http://localhost:3000.
+1. In Supabase, open **Edge Functions → Secrets** for project `psvqvwdaifieeohegqtd` and add `OPENAI_API_KEY`. The key must stay in Supabase secrets; never add it to GitHub or browser code.
+2. In Supabase **Authentication → URL Configuration**, set the site URL to `https://suryamaster1000.github.io/python-mid1-practice/` and allow that URL for sign-up confirmation redirects.
+3. In GitHub, open **Settings → Pages** and set the build/deployment source to **GitHub Actions**. The workflow publishes the `public/` folder on pushes to `main`.
 
-Keep `.env` private. It is excluded by `.gitignore`. Never paste the key into the app page, chat, or a committed file.
+After the first workflow completes, the site is at https://suryamaster1000.github.io/python-mid1-practice/.
 
-## Deploy
+## Use the app
 
-Deploy this repository to a host that runs Node.js applications and uses `npm start` as the start command. Add `OPENAI_API_KEY` as a private environment variable in the hosting dashboard. You can optionally set `OPENAI_MODEL` and `PORT` there too. Do not deploy this as a static GitHub Pages site: the app needs a server to keep the API key private.
+- Students create an account or sign in with email and password.
+- Paste a syllabus or upload a `.txt`/`.md` file (up to 1 MB).
+- Generate theory Q&A, a multiple-choice quiz, or one Python coding problem.
+- Reveal answers after attempting questions. Coding exercises report failing cases and Python errors, including line numbers when available.
 
-## What it supports
+## Limits
 
-- Paste syllabus text or upload a `.txt`/`.md` file (up to 1 MB).
-- Generate theory Q&A, multiple-choice quizzes, or one Python function challenge with edge-case tests.
-- Reveal answers and explanations after attempting the question.
-- Run generated Python tests in the browser with Pyodide. Student code is not sent to the app server.
-
-PDF/DOCX uploads and execution for other programming languages are not included in this first version. The Python runtime is loaded from jsDelivr, so code challenges need an internet connection.
+PDF/DOCX uploads and runners for languages other than Python are not included yet. The Python runtime is loaded from jsDelivr, so coding questions need an internet connection. Question generation requires a valid OpenAI API key configured as a Supabase Edge Function secret.
