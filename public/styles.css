@@ -44,6 +44,7 @@ h1 em { color: var(--lime); font-style: normal; }
 .auth-copy strong { font: 700 12px var(--display); }
 .auth-copy>span:last-child { color: var(--muted); font-size: 10px; }
 .auth-controls { display: flex; align-items: center; gap: 7px; }
+.auth-controls[hidden] { display: none !important; }
 .auth-controls input { width: 155px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 9px; background: var(--paper); color: var(--ink); outline: none; }
 .auth-controls input:focus { border-color: #71a285; box-shadow: 0 0 0 3px #367a541a; }
 .auth-note-error { color: var(--red)!important; }
