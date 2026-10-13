@@ -19,6 +19,7 @@ const message = document.querySelector("#message");
 const results = document.querySelector("#results");
 const resultBadge = document.querySelector("#resultBadge");
 const durationSelect = document.querySelector("#durationSelect");
+const levelSelect = document.querySelector("#levelSelect");
 const topSessionLabel = document.querySelector("#topSessionLabel");
 const dashboardTestCount = document.querySelector("#dashboardTestCount");
 const dashboardLatestScore = document.querySelector("#dashboardLatestScore");
@@ -121,20 +122,39 @@ syllabusInput.addEventListener("input", updateCount);
 fileInput.addEventListener("change", async () => {
   const file = fileInput.files?.[0];
   if (!file) return;
-  if (file.size > 1_000_000) {
-    setMessage("That file is over 1 MB. Paste the text or choose a smaller .txt/.md file.", "error");
+  if (file.size > 10_000_000) {
+    setMessage("That file is over 10 MB. Choose a smaller syllabus file.", "error");
     fileInput.value = "";
     return;
   }
   try {
-    const text = await file.text();
+    let text = "";
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    if (isPdf) {
+      setMessage("Reading selectable text from your PDF…");
+      const pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+      const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      if (pdf.numPages > 120) throw new Error("This PDF has more than 120 pages. Upload the relevant syllabus pages only.");
+      const pages = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        pages.push(content.items.map(item => ("str" in item ? item.str : "")).join(" "));
+      }
+      text = pages.join("\n");
+      if (!text.trim()) throw new Error("No selectable text was found. This may be a scanned PDF; paste its text or upload a text-based PDF/TXT/Markdown file.");
+    } else {
+      text = await file.text();
+    }
     if (!text.trim()) throw new Error("This file is empty.");
     syllabusInput.value = text.slice(0, 40_000);
     fileName.textContent = file.name;
     updateCount();
-    setMessage("Syllabus loaded. Choose a practice type and generate your study set.");
+    setMessage("Syllabus loaded into the portal. Choose the assessment type and click Generate assessment.");
   } catch (error) {
     setMessage(error.message || "Could not read that file.", "error");
+    if (!syllabusInput.value.trim()) fileName.textContent = "No file selected";
   }
 });
 tabs.forEach(tab => tab.addEventListener("click", () => {
@@ -171,7 +191,7 @@ generateBtn.addEventListener("click", async () => {
   try {
     if (!currentSession?.access_token) throw new Error("Sign in before generating a study set.");
     const { data, error } = await supabase.functions.invoke("generate-study-set", {
-      body: { syllabus, mode: activeMode, count: Number(countSelect.value) }
+      body: { syllabus, mode: activeMode, count: Number(countSelect.value), level: levelSelect?.value || "university" }
     });
     if (error) {
       let reason = error.message || "Could not generate questions.";
