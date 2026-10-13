@@ -468,3 +468,14 @@ button { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* n8n PDF-test bridge */
+.external-activity { text-decoration: none; color: inherit; }
+.activity-icon.amber { background: #fff3df; color: #9c681d; font-size: 10px; letter-spacing: -.03em; }
+.n8n-pdf-card { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 12px; border: 1px solid #d7e3fb; border-radius: 9px; background: linear-gradient(110deg,#f1f5ff,#fbfcff); text-decoration: none; transition: border-color .16s, transform .16s, box-shadow .16s; }
+.n8n-pdf-card:hover { border-color: #9eb9f1; box-shadow: 0 5px 14px #3268dc12; transform: translateY(-1px); }
+.n8n-pdf-icon { display: grid; place-items: center; flex: 0 0 37px; height: 37px; border: 1px solid #d8e3fb; border-radius: 8px; background: #fff; color: #315fbd; font: 700 10px var(--mono); }
+.n8n-pdf-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.n8n-pdf-copy b { color: #2a3e61; font-size: 10px; }
+.n8n-pdf-copy small { color: #7e8da7; font-size: 9px; line-height: 1.45; }
+.n8n-pdf-arrow { color: #3268dc; font-size: 15px; }
