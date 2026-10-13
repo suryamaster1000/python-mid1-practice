@@ -30,6 +30,8 @@ let activeMode = "theory";
 let currentProblem = null;
 let currentTestToken = null;
 let examTimerInterval = null;
+let examTimerController = null;
+const modeSnapshots = new Map();
 let sessionTestsCompleted = 0;
 let latestScorePercent = null;
 
@@ -157,21 +159,62 @@ fileInput.addEventListener("change", async () => {
     if (!syllabusInput.value.trim()) fileName.textContent = "No file selected";
   }
 });
+function defaultModeMessage(mode) {
+  if (mode === "code") return "Generate a coding challenge in a language found in your syllabus, then submit your solution for AI feedback.";
+  if (mode === "test") return "Take a written assessment, submit your answers, and get criterion-based AI feedback.";
+  if (mode === "practice") return "Generate a multiple-choice quiz. Your selected answers and explanations stay here while you explore other activities.";
+  return "Generate short-answer questions for active recall. Your set and revealed answers stay here while you explore other activities.";
+}
+
 tabs.forEach(tab => tab.addEventListener("click", () => {
-  if (examTimerInterval) { clearInterval(examTimerInterval); examTimerInterval = null; }
-  activeMode = tab.dataset.mode;
+  const nextMode = tab.dataset.mode;
+  if (nextMode === activeMode) return;
+  if (generateBtn.disabled) {
+    setMessage("Please let the current set finish generating before switching activities.");
+    return;
+  }
+  const currentSubmit = activeMode === "test" ? results.querySelector(".submit-test") : null;
+  if (currentSubmit?.dataset.evaluating === "true") {
+    setMessage("Your written test is being evaluated. Please stay here until grading finishes.");
+    return;
+  }
+
+  // Keep the existing DOM, form values, checked answers, opened explanations and event listeners.
+  // A timed test pauses while another activity is open and resumes when the student returns.
+  if (activeMode === "test") examTimerController?.pause();
+  const fragment = document.createDocumentFragment();
+  while (results.firstChild) fragment.append(results.firstChild);
+  modeSnapshots.set(activeMode, {
+    fragment,
+    messageText: message.textContent,
+    messageClass: message.className,
+    messageHidden: message.hidden,
+    badgeText: resultBadge.textContent,
+    currentProblem,
+    currentTestToken
+  });
+
+  activeMode = nextMode;
   tabs.forEach(item => item.classList.toggle("selected", item === tab));
-  currentProblem = null;
-  currentTestToken = null;
   results.replaceChildren();
-  resultBadge.textContent = "READY WHEN YOU ARE";
-  setMessage(activeMode === "code"
-    ? "Generate a coding challenge in a language found in your syllabus, then submit your solution for AI feedback."
-    : activeMode === "test"
-      ? "Take a written assessment, submit your answers, and get criterion-based AI feedback."
-    : activeMode === "practice"
-      ? "Generate a multiple-choice quiz. Check each answer to see an explanation."
-      : "Generate short-answer questions for active recall.");
+  const saved = modeSnapshots.get(activeMode);
+  if (saved) {
+    results.append(saved.fragment);
+    message.textContent = saved.messageText;
+    message.className = saved.messageClass;
+    message.hidden = saved.messageHidden;
+    resultBadge.textContent = saved.badgeText;
+    currentProblem = saved.currentProblem;
+    currentTestToken = saved.currentTestToken;
+  } else {
+    currentProblem = null;
+    currentTestToken = null;
+    resultBadge.textContent = "READY WHEN YOU ARE";
+    setMessage(defaultModeMessage(activeMode));
+  }
+
+  if (activeMode === "test") examTimerController?.resume();
+  else examTimerController?.pause();
 }));
 
 generateBtn.addEventListener("click", async () => {
@@ -181,9 +224,14 @@ generateBtn.addEventListener("click", async () => {
     syllabusInput.focus();
     return;
   }
-  if (examTimerInterval) { clearInterval(examTimerInterval); examTimerInterval = null; }
+  if (activeMode === "test") {
+    examTimerController?.stop();
+    examTimerController = null;
+  }
+  modeSnapshots.delete(activeMode);
   results.replaceChildren();
   currentProblem = null;
+  currentTestToken = null;
   generateBtn.disabled = true;
   generateBtn.querySelector("span:first-child").textContent = "Generating…";
   resultBadge.textContent = "WORKING";
@@ -367,7 +415,8 @@ function renderTest(test) {
       return;
     }
     if (!timedOut && !window.confirm("Submit this test now? You will not be able to edit your answers after successful evaluation.")) return;
-    if (examTimerInterval) { clearInterval(examTimerInterval); examTimerInterval = null; }
+    examTimerController?.stop();
+    submit.dataset.evaluating = "true";
     submit.disabled = true;
     submit.textContent = timedOut ? "Time ended · evaluating…" : "Evaluating your answers…";
     setMessage(timedOut ? "Time is up. Your answers are being submitted for evaluation." : "AI is checking your answers against the syllabus and grading criteria. This may take a few seconds.");
@@ -394,6 +443,7 @@ function renderTest(test) {
       resultBadge.textContent = grade.percent + "% · " + grade.score + "/" + grade.totalPoints;
       if (message) message.hidden = true;
       submit.textContent = "Test submitted";
+      delete submit.dataset.evaluating;
       submitRow.append(el("span", "test-submit-note", "Completed · review your score and question-wise feedback below."));
       sessionTestsCompleted += 1;
       latestScorePercent = Number(grade.percent);
@@ -402,26 +452,42 @@ function renderTest(test) {
       if (dashboardScoreNote) dashboardScoreNote.textContent = "Latest written test · session only";
     } catch (error) {
       setMessage(error.message || "Could not evaluate your test. Please try again.", "error");
+      delete submit.dataset.evaluating;
       submit.disabled = false;
       submit.textContent = timeExpired ? "Retry evaluation" : "Submit written test";
     }
   });
 
-  examTimerInterval = setInterval(() => {
+  const timerTick = () => {
     secondsLeft -= 1;
     if (secondsLeft <= 0) {
       secondsLeft = 0;
       timeExpired = true;
       updateTimer();
-      clearInterval(examTimerInterval);
-      examTimerInterval = null;
+      examTimerController?.stop();
       submit.dataset.autoSubmit = "true";
       setMessage("Time is up. The portal is submitting your current answers.", "error");
       submit.click();
       return;
     }
     updateTimer();
-  }, 1000);
+  };
+  examTimerController = {
+    pause() {
+      if (examTimerInterval) clearInterval(examTimerInterval);
+      examTimerInterval = null;
+    },
+    resume() {
+      if (!timeExpired && !submit.disabled && !examTimerInterval) {
+        examTimerInterval = setInterval(timerTick, 1000);
+      }
+    },
+    stop() {
+      if (examTimerInterval) clearInterval(examTimerInterval);
+      examTimerInterval = null;
+    }
+  };
+  examTimerController.resume();
   window.setTimeout(() => questionCards[0]?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
 }
 
