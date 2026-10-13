@@ -1,6 +1,6 @@
 # Syllabus Study Lab
 
-Syllabus Study Lab turns a course outline into an LMS-style practice session. Students can use it without an email or password; Supabase creates a temporary anonymous session in the current browser.
+Syllabus Study Lab is an interactive university-level assessment portal. Students upload a text-based PDF, TXT, or Markdown syllabus (or paste an outline), configure the assessment standard, question count, and duration, then take timed tests and review AI feedback inside the website. Students can start without an email or password; Supabase creates a temporary anonymous session in the current browser.
 
 ## Student activities
 
@@ -13,7 +13,7 @@ AI scores are practice estimates, not official grades. Code review is model-base
 
 ## Requirements
 
-- A Supabase project with anonymous sign-ins enabled.
+- A Supabase project with anonymous sign-ins enabled. Text-based PDF syllabuses are extracted in the browser with PDF.js; scanned image-only PDFs require OCR or manual text input.
 - An OpenRouter API key saved as a Supabase Edge Function secret named `OPENROUTER_API_KEY`. The current deployed function also accepts the existing secret name `openrutor key`. Never add the API key to this repository or browser code.
 - GitHub Pages configured to deploy the `public/` directory through the included Actions workflow.
 
