@@ -18,16 +18,26 @@ const generateBtn = document.querySelector("#generateBtn");
 const message = document.querySelector("#message");
 const results = document.querySelector("#results");
 const resultBadge = document.querySelector("#resultBadge");
+const durationSelect = document.querySelector("#durationSelect");
+const topSessionLabel = document.querySelector("#topSessionLabel");
+const dashboardTestCount = document.querySelector("#dashboardTestCount");
+const dashboardLatestScore = document.querySelector("#dashboardLatestScore");
+const dashboardScoreNote = document.querySelector("#dashboardScoreNote");
 const tabs = [...document.querySelectorAll(".mode-tab")];
+const navItems = [...document.querySelectorAll(".nav-item[data-view]")];
 let activeMode = "theory";
 let currentProblem = null;
 let currentTestToken = null;
+let examTimerInterval = null;
+let sessionTestsCompleted = 0;
+let latestScorePercent = null;
 
 async function syncAuth(session) {
   currentSession = session;
   const signedIn = Boolean(session?.user);
-  authStatus.textContent = signedIn ? "Ready to study" : "Connecting securely…";
+  authStatus.textContent = signedIn ? "Student session ready" : "Connecting securely…";
   authNote.textContent = signedIn ? "Temporary anonymous session ready. This session stays in this browser." : "Connecting to a temporary student session. No email or password is needed.";
+  if (topSessionLabel) topSessionLabel.textContent = signedIn ? "Session active" : "Connecting…";
   authNote.classList.remove("auth-note-error");
   generateBtn.disabled = !signedIn;
 }
@@ -35,6 +45,63 @@ supabase.auth.onAuthStateChange((_event, session) => {
   queueMicrotask(() => syncAuth(session));
 });
 supabase.auth.getSession().then(async ({ data, error }) => { if (error) throw error; let session = data.session; if (!session) { const { data: anonymousData, error: anonymousError } = await supabase.auth.signInAnonymously(); if (anonymousError) throw anonymousError; session = anonymousData.session; } await syncAuth(session); }).catch(error => { authStatus.textContent = "Connection needed"; authNote.textContent = error.message || "Anonymous access is not available right now."; authNote.classList.add("auth-note-error"); generateBtn.disabled = true; });
+
+
+function openPortalView(view, requestedMode = null) {
+  const dashboard = document.querySelector("#dashboardView");
+  const workspace = document.querySelector("#workspaceView");
+  if (dashboard) dashboard.hidden = view !== "dashboard";
+  if (workspace) workspace.hidden = view === "dashboard";
+  navItems.forEach(item => item.classList.toggle("active", item.dataset.view === view));
+  if (view === "dashboard") {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+
+  const heading = document.querySelector("#workspaceTitle");
+  const subtitle = document.querySelector("#workspaceSubtitle");
+  const breadcrumb = document.querySelector("#workspaceBreadcrumb");
+  const config = {
+    "test-center": ["Test Center", "ASSESSMENTS / TEST CENTER", "Configure a session from your syllabus and attempt it like an online assessment."],
+    "syllabus": ["My Syllabus", "MY LEARNING / SYLLABUS", "Upload or paste the course outline your practice questions should be based on."],
+    "results": ["Results & Review", "ASSESSMENTS / RESULTS & REVIEW", "Review the assessment or practice set currently open in this session."],
+    "practice-lab": ["Practice Lab", "PRACTICE / PRACTICE LAB", "Build focused practice sessions and get feedback on your attempt."]
+  };
+  const settings = config[view] || config["test-center"];
+  if (heading) heading.textContent = settings[0];
+  if (subtitle) subtitle.textContent = settings[2];
+  if (breadcrumb) breadcrumb.textContent = settings[1];
+  if (requestedMode) {
+    const targetTab = tabs.find(tab => tab.dataset.mode === requestedMode);
+    if (targetTab) targetTab.click();
+  } else if (view === "test-center") {
+    const targetTab = tabs.find(tab => tab.dataset.mode === "test");
+    if (targetTab && activeMode !== "test") targetTab.click();
+  } else if (view === "practice-lab") {
+    const targetTab = tabs.find(tab => tab.dataset.mode === "code");
+    if (targetTab && activeMode !== "code") targetTab.click();
+  } else if (view === "results" && !results.childElementCount) {
+    setMessage("No results yet. Start a written test or practice activity to see feedback here.");
+  }
+  if (view === "syllabus") {
+    setTimeout(() => syllabusInput.scrollIntoView({ behavior: "smooth", block: "center" }), 40);
+  } else if (view === "results") {
+    setTimeout(() => document.querySelector("#resultsPanel").scrollIntoView({ behavior: "smooth", block: "start" }), 40);
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+}
+navItems.forEach(item => item.addEventListener("click", () => openPortalView(item.dataset.view)));
+document.querySelectorAll("[data-open-view]").forEach(button => {
+  button.addEventListener("click", () => openPortalView(button.dataset.openView));
+});
+document.querySelectorAll("[data-open-mode]").forEach(button => {
+  button.addEventListener("click", () => {
+    const mode = button.dataset.openMode;
+    const view = mode === "code" ? "practice-lab" : "test-center";
+    openPortalView(view, mode);
+  });
+});
 
 function setMessage(text, kind = "") {
   message.textContent = text;
@@ -71,6 +138,7 @@ fileInput.addEventListener("change", async () => {
   }
 });
 tabs.forEach(tab => tab.addEventListener("click", () => {
+  if (examTimerInterval) { clearInterval(examTimerInterval); examTimerInterval = null; }
   activeMode = tab.dataset.mode;
   tabs.forEach(item => item.classList.toggle("selected", item === tab));
   currentProblem = null;
@@ -93,6 +161,7 @@ generateBtn.addEventListener("click", async () => {
     syllabusInput.focus();
     return;
   }
+  if (examTimerInterval) { clearInterval(examTimerInterval); examTimerInterval = null; }
   results.replaceChildren();
   currentProblem = null;
   generateBtn.disabled = true;
@@ -175,68 +244,165 @@ async function invokeFunction(body) {
 
 function renderTest(test) {
   currentTestToken = test.testToken;
+  if (!Array.isArray(test.questions) || !test.questions.length) throw new Error("The test did not include any questions. Please try again.");
+
   const heading = el("div", "assessment-intro");
   heading.append(el("h3", "", test.title || "Written assessment"));
-  heading.append(el("p", "", test.summary || "Answer all questions, then submit for AI evaluation."));
-  heading.append(el("div", "assessment-meta", `${test.questions.length} questions · ${test.questions.reduce((sum, question) => sum + question.points, 0)} points · AI-evaluated practice`));
+  heading.append(el("p", "", test.summary || "Answer the questions below, keep an eye on the timer, then submit for feedback."));
+  heading.append(el("div", "assessment-meta", test.questions.length + " questions · " + test.questions.reduce((sum, question) => sum + question.points, 0) + " points · AI-evaluated practice"));
   results.append(heading);
+
+  const toolbar = el("div", "test-toolbar");
+  const toolbarLabel = el("div", "test-toolbar-label");
+  toolbarLabel.append(el("span", "", "TIMED ASSESSMENT"), el("strong", "", "Answer every question you can"));
+  const timer = el("div", "test-timer");
+  timer.id = "testTimer";
+  timer.setAttribute("role", "timer");
+  timer.setAttribute("aria-live", "off");
+  const durationMins = Math.max(1, Number(durationSelect?.value) || 30);
+  let secondsLeft = durationMins * 60;
+  let timeExpired = false;
+  const updateTimer = () => {
+    const mins = Math.floor(Math.max(0, secondsLeft) / 60);
+    const secs = Math.max(0, secondsLeft) % 60;
+    timer.textContent = "◷ " + String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+    timer.classList.toggle("warning", secondsLeft <= 300 && secondsLeft > 0);
+    timer.classList.toggle("expired", secondsLeft <= 0);
+  };
+  updateTimer();
+  toolbar.append(toolbarLabel, timer);
+  results.append(toolbar);
+
   const answerFields = new Map();
+  const palette = el("nav", "question-palette");
+  palette.setAttribute("aria-label", "Question navigation");
+  palette.append(el("span", "palette-title", "JUMP TO"));
+  const questionCards = [];
+
   for (const [index, question] of test.questions.entries()) {
+    const number = index + 1;
     const card = el("article", "question-card test-question");
+    card.id = "test-question-" + number;
     const top = el("div", "question-top");
-    top.append(el("span", "question-num", String(index + 1).padStart(2, "0")));
+    top.append(el("span", "question-num", "QUESTION " + String(number).padStart(2, "0")));
     top.append(el("span", "topic-pill", question.topic || "Assessment"));
-    top.append(el("span", "difficulty", `${question.points} points`));
+    top.append(el("span", "difficulty", question.points + " points"));
     card.append(top, el("h3", "", question.question || ""));
     const answer = document.createElement("textarea");
     answer.className = "written-answer";
-    answer.id = `test-answer-${question.id}`;
+    answer.id = "test-answer-" + String(question.id || number).replace(/[^a-zA-Z0-9_-]/g, "-");
     answer.placeholder = "Write your answer here…";
     answer.maxLength = 8000;
-    answer.setAttribute("aria-label", `Answer for question ${index + 1}`);
+    answer.setAttribute("aria-label", "Answer for question " + number);
     answerFields.set(question.id, answer);
     card.append(answer);
+
+    const markReview = el("button", "mark-review-btn", "☆ Mark for review");
+    markReview.type = "button";
+    markReview.setAttribute("aria-pressed", "false");
+    markReview.addEventListener("click", () => {
+      const isMarked = markReview.getAttribute("aria-pressed") !== "true";
+      markReview.setAttribute("aria-pressed", String(isMarked));
+      markReview.textContent = isMarked ? "★ Marked for review" : "☆ Mark for review";
+      paletteButton.classList.toggle("review", isMarked);
+    });
+    card.append(markReview);
+    answer.addEventListener("input", () => {
+      paletteButton.classList.toggle("answered", Boolean(answer.value.trim()));
+    });
     results.append(card);
+    questionCards.push(card);
+
+    const paletteButton = el("button", "palette-item", String(number));
+    paletteButton.type = "button";
+    paletteButton.setAttribute("aria-label", "Go to question " + number);
+    paletteButton.addEventListener("click", () => {
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      answer.focus({ preventScroll: true });
+    });
+    palette.append(paletteButton);
   }
-  const submit = el("button", "primary-btn submit-test", "Submit written test for AI evaluation");
+  const legend = el("span", "palette-legend");
+  legend.append(el("span", "", "● Answered"), el("span", "", "● Review"));
+  legend.children[0].prepend(el("i", "legend-key"));
+  legend.children[1].prepend(el("i", "legend-key review-key"));
+  palette.append(legend);
+  results.insertBefore(palette, questionCards[0]);
+
+  const submitRow = el("div", "test-submit-row");
+  const submit = el("button", "primary-btn submit-test", "Submit written test");
   submit.type = "button";
+  const submitNote = el("span", "test-submit-note", "Submission ends the timer. AI feedback appears after evaluation.");
+  submitRow.append(submit, submitNote);
   const gradePanel = el("section", "grade-panel");
   gradePanel.hidden = true;
-  results.append(submit, gradePanel);
+  results.append(submitRow, gradePanel);
+
   submit.addEventListener("click", async () => {
+    const timedOut = submit.dataset.autoSubmit === "true" || timeExpired;
+    submit.dataset.autoSubmit = "false";
     const answers = Object.fromEntries([...answerFields].map(([id, field]) => [id, field.value.trim()]));
-    if (Object.values(answers).every(answer => !answer)) {
+    if (!timedOut && Object.values(answers).every(answer => !answer)) {
       setMessage("Write at least one answer before submitting your test.", "error");
       return;
     }
+    if (!timedOut && !window.confirm("Submit this test now? You will not be able to edit your answers after successful evaluation.")) return;
+    if (examTimerInterval) { clearInterval(examTimerInterval); examTimerInterval = null; }
     submit.disabled = true;
-    submit.textContent = "Evaluating your answers…";
-    setMessage("AI is checking your answers against the syllabus and grading criteria. This may take a few seconds.");
+    submit.textContent = timedOut ? "Time ended · evaluating…" : "Evaluating your answers…";
+    setMessage(timedOut ? "Time is up. Your answers are being submitted for evaluation." : "AI is checking your answers against the syllabus and grading criteria. This may take a few seconds.");
     try {
       const grade = await invokeFunction({ mode: "evaluate-test", testToken: currentTestToken, answers });
       for (const field of answerFields.values()) field.disabled = true;
+      for (const card of questionCards) {
+        card.querySelector(".mark-review-btn")?.setAttribute("disabled", "true");
+      }
+      gradePanel.replaceChildren();
       gradePanel.hidden = false;
       const score = el("div", "grade-score");
-      score.append(el("strong", "", `${grade.score} / ${grade.totalPoints}`), el("span", "", `${grade.percent}% · AI practice estimate`));
+      score.append(el("strong", "", grade.score + " / " + grade.totalPoints), el("span", "", grade.percent + "% · AI practice estimate"));
       gradePanel.append(score, el("p", "grade-overall", grade.overallFeedback || "Review the feedback for each question."));
       for (const [index, question] of test.questions.entries()) {
-        const item = grade.results.find(result => result.id === question.id) || {};
+        const item = (grade.results || []).find(result => result.id === question.id) || {};
         const feedback = el("article", "grade-item");
-        feedback.append(el("strong", "grade-item-title", `Q${index + 1} · ${item.awardedPoints ?? 0}/${item.points ?? question.points} points`));
+        feedback.append(el("strong", "grade-item-title", "Q" + (index + 1) + " · " + (item.awardedPoints ?? 0) + "/" + (item.points ?? question.points) + " points"));
         feedback.append(el("p", "", item.feedback || "Review the reference answer below."));
-        if (item.missingConcepts?.length) feedback.append(el("p", "grade-missing", `Review: ${item.missingConcepts.join(", ")}`));
-        if (item.referenceAnswer) feedback.append(el("p", "grade-reference", `Reference answer: ${item.referenceAnswer}`));
+        if (item.missingConcepts?.length) feedback.append(el("p", "grade-missing", "Review: " + item.missingConcepts.join(", ")));
+        if (item.referenceAnswer) feedback.append(el("p", "grade-reference", "Reference answer: " + item.referenceAnswer));
         gradePanel.append(feedback);
       }
-      resultBadge.textContent = `${grade.percent}% · ${grade.score}/${grade.totalPoints}`;
-      message.hidden = true;
+      resultBadge.textContent = grade.percent + "% · " + grade.score + "/" + grade.totalPoints;
+      if (message) message.hidden = true;
       submit.textContent = "Test submitted";
+      submitRow.append(el("span", "test-submit-note", "Completed · review your score and question-wise feedback below."));
+      sessionTestsCompleted += 1;
+      latestScorePercent = Number(grade.percent);
+      if (dashboardTestCount) dashboardTestCount.textContent = String(sessionTestsCompleted);
+      if (dashboardLatestScore) dashboardLatestScore.textContent = Number.isFinite(latestScorePercent) ? latestScorePercent + "%" : "—";
+      if (dashboardScoreNote) dashboardScoreNote.textContent = "Latest written test · session only";
     } catch (error) {
       setMessage(error.message || "Could not evaluate your test. Please try again.", "error");
       submit.disabled = false;
-      submit.textContent = "Submit written test for AI evaluation";
+      submit.textContent = timeExpired ? "Retry evaluation" : "Submit written test";
     }
   });
+
+  examTimerInterval = setInterval(() => {
+    secondsLeft -= 1;
+    if (secondsLeft <= 0) {
+      secondsLeft = 0;
+      timeExpired = true;
+      updateTimer();
+      clearInterval(examTimerInterval);
+      examTimerInterval = null;
+      submit.dataset.autoSubmit = "true";
+      setMessage("Time is up. The portal is submitting your current answers.", "error");
+      submit.click();
+      return;
+    }
+    updateTimer();
+  }, 1000);
+  window.setTimeout(() => questionCards[0]?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
 }
 
 function renderQuiz(data) {
