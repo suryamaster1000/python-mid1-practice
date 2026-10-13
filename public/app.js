@@ -20,6 +20,8 @@ const results = document.querySelector("#results");
 const resultBadge = document.querySelector("#resultBadge");
 const durationSelect = document.querySelector("#durationSelect");
 const levelSelect = document.querySelector("#levelSelect");
+const questionTypeSelect = document.querySelector("#questionTypeSelect");
+const difficultySelect = document.querySelector("#difficultySelect");
 const topSessionLabel = document.querySelector("#topSessionLabel");
 const dashboardTestCount = document.querySelector("#dashboardTestCount");
 const dashboardLatestScore = document.querySelector("#dashboardLatestScore");
@@ -32,6 +34,8 @@ let currentTestToken = null;
 let examTimerInterval = null;
 let examTimerController = null;
 const modeSnapshots = new Map();
+let questionTypeTriggeredModeSwitch = false;
+let lastQuestionTypeValue = questionTypeSelect?.value || "auto";
 let sessionTestsCompleted = 0;
 let latestScorePercent = null;
 
@@ -166,6 +170,12 @@ function defaultModeMessage(mode) {
   return "Generate short-answer questions for active recall. Your set and revealed answers stay here while you explore other activities.";
 }
 
+function defaultModeQuestionType(mode) {
+  if (mode === "theory" || mode === "test") return "short_answer";
+  if (mode === "practice") return "multiple_choice";
+  return "auto";
+}
+
 tabs.forEach(tab => tab.addEventListener("click", () => {
   const nextMode = tab.dataset.mode;
   if (nextMode === activeMode) return;
@@ -179,8 +189,6 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
     return;
   }
 
-  // Keep the existing DOM, form values, checked answers, opened explanations and event listeners.
-  // A timed test pauses while another activity is open and resumes when the student returns.
   if (activeMode === "test") examTimerController?.pause();
   const fragment = document.createDocumentFragment();
   while (results.firstChild) fragment.append(results.firstChild);
@@ -191,11 +199,24 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
     messageHidden: message.hidden,
     badgeText: resultBadge.textContent,
     currentProblem,
-    currentTestToken
+    currentTestToken,
+    questionType: questionTypeTriggeredModeSwitch ? lastQuestionTypeValue : (questionTypeSelect?.value || "auto")
   });
 
   activeMode = nextMode;
   tabs.forEach(item => item.classList.toggle("selected", item === tab));
+  const wasTypeDrivenSwitch = questionTypeTriggeredModeSwitch;
+  questionTypeTriggeredModeSwitch = false;
+  if (questionTypeSelect) {
+    if (wasTypeDrivenSwitch) {
+      questionTypeSelect.disabled = activeMode === "test" || activeMode === "code";
+    } else {
+      questionTypeSelect.value = modeSnapshots.get(activeMode)?.questionType || defaultModeQuestionType(activeMode);
+      questionTypeSelect.disabled = activeMode === "test" || activeMode === "code";
+    }
+    lastQuestionTypeValue = questionTypeSelect.value;
+  }
+
   results.replaceChildren();
   const saved = modeSnapshots.get(activeMode);
   if (saved) {
@@ -209,13 +230,29 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
   } else {
     currentProblem = null;
     currentTestToken = null;
-    resultBadge.textContent = "READY WHEN YOU ARE";
+    resultBadge.textContent = "READY TO BEGIN";
     setMessage(defaultModeMessage(activeMode));
   }
 
   if (activeMode === "test") examTimerController?.resume();
   else examTimerController?.pause();
 }));
+
+if (questionTypeSelect) {
+  questionTypeSelect.disabled = false;
+  questionTypeSelect.addEventListener("change", () => {
+    const selectedType = questionTypeSelect.value;
+    const targetMode = selectedType === "short_answer" ? "theory"
+      : ["multiple_choice", "true_false", "fill_blank", "mixed"].includes(selectedType) ? "practice"
+      : activeMode;
+    if (activeMode !== "test" && activeMode !== "code" && targetMode !== activeMode) {
+      questionTypeTriggeredModeSwitch = true;
+      tabs.find(tab => tab.dataset.mode === targetMode)?.click();
+    }
+    lastQuestionTypeValue = selectedType;
+    setMessage("Question type: " + (questionTypeSelect.selectedOptions?.[0]?.textContent || "selected format") + ". Generate a new set to apply this setting.");
+  });
+}
 
 generateBtn.addEventListener("click", async () => {
   const syllabus = syllabusInput.value.trim();
@@ -239,7 +276,14 @@ generateBtn.addEventListener("click", async () => {
   try {
     if (!currentSession?.access_token) throw new Error("Sign in before generating a study set.");
     const { data, error } = await supabase.functions.invoke("generate-study-set", {
-      body: { syllabus, mode: activeMode, count: Number(countSelect.value), level: levelSelect?.value || "university" }
+      body: {
+        syllabus,
+        mode: activeMode,
+        count: Number(countSelect.value),
+        level: levelSelect?.value || "university",
+        questionType: questionTypeSelect?.value || "auto",
+        difficulty: difficultySelect?.value || "mixed"
+      }
     });
     if (error) {
       let reason = error.message || "Could not generate questions.";
@@ -492,39 +536,95 @@ function renderTest(test) {
 }
 
 function renderQuiz(data) {
+  const formatLabels = {
+    multiple_choice: "MCQ",
+    true_false: "True / False",
+    fill_blank: "Fill in the blank",
+    short_answer: "Short answer"
+  };
   for (const [index, item] of (data.questions || []).entries()) {
+    const selectedType = questionTypeSelect?.value || "multiple_choice";
+    const type = ["multiple_choice", "true_false", "fill_blank", "short_answer"].includes(item.type)
+      ? item.type
+      : (["true_false", "fill_blank", "short_answer"].includes(selectedType) ? selectedType : "multiple_choice");
     const card = el("article", "question-card");
     const top = el("div", "question-top");
     top.append(el("span", "question-num", String(index + 1).padStart(2, "0")));
     top.append(el("span", "topic-pill", item.topic || "Practice"));
-    top.append(el("span", "difficulty", item.difficulty || "medium"));
+    top.append(el("span", "difficulty", (item.difficulty || difficultySelect?.value || "medium") + " · " + (formatLabels[type] || "Question")));
     card.append(top, el("h3", "", item.question || ""));
-    const options = el("div", "options");
-    const group = `question-${index}`;
-    (item.options || []).forEach((option, optionIndex) => {
-      const label = el("label", "option");
-      const input = document.createElement("input");
-      input.type = "radio";
-      input.name = group;
-      input.value = String(optionIndex);
-      label.append(input, el("span", "", option));
-      options.append(label);
-    });
-    const check = el("button", "answer-toggle", "Check answer");
+    const group = "question-" + activeMode + "-" + index;
+    let answerControl = null;
+    let optionLabels = [];
+    if (type === "multiple_choice" || type === "true_false") {
+      const options = el("div", "options");
+      const optionValues = type === "true_false" ? ["True", "False"] : (Array.isArray(item.options) ? item.options : []);
+      optionValues.forEach((option, optionIndex) => {
+        const label = el("label", "option");
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = group;
+        input.value = String(optionIndex);
+        label.append(input, el("span", "", String(option)));
+        options.append(label);
+        optionLabels.push(label);
+      });
+      card.append(options);
+    } else if (type === "fill_blank") {
+      answerControl = document.createElement("input");
+      answerControl.type = "text";
+      answerControl.className = "written-answer";
+      answerControl.placeholder = "Type the missing word or value…";
+      answerControl.maxLength = 1200;
+      answerControl.setAttribute("aria-label", "Answer for question " + (index + 1));
+      card.append(answerControl);
+    } else {
+      answerControl = document.createElement("textarea");
+      answerControl.className = "written-answer";
+      answerControl.placeholder = "Write a short answer…";
+      answerControl.maxLength = 4000;
+      answerControl.setAttribute("aria-label", "Answer for question " + (index + 1));
+      card.append(answerControl);
+    }
+
+    const check = el("button", "answer-toggle", type === "short_answer" ? "Compare with reference answer" : "Check answer");
     check.type = "button";
     const feedback = el("div", "quiz-feedback");
     feedback.hidden = true;
     check.addEventListener("click", () => {
-      const chosen = card.querySelector(`input[name="${group}"]:checked`);
-      if (!chosen) { feedback.textContent = "Choose an option first."; feedback.hidden = false; return; }
-      const correctIndex = Number(item.answerIndex);
-      const correct = Number(chosen.value) === correctIndex;
-      feedback.textContent = `${correct ? "Correct." : "Not quite."} ${item.explanation || ""}`;
-      feedback.style.color = correct ? "#396c43" : "#a44c31";
+      let answered = false;
+      if (type === "multiple_choice" || type === "true_false") {
+        const chosen = card.querySelector('input[name="' + group + '"]:checked');
+        if (chosen) {
+          answered = true;
+          const expectedIndex = Number(item.answerIndex);
+          const correctAnswer = type === "true_false" ? ["True", "False"][expectedIndex] : String(item.options?.[expectedIndex] || item.correctAnswer || "");
+          const correct = Number(chosen.value) === expectedIndex;
+          feedback.textContent = (correct ? "Correct. " : "Not quite. ") + (item.explanation || ("Reference answer: " + correctAnswer));
+          feedback.style.color = correct ? "#396c43" : "#a44c31";
+          optionLabels.forEach((label, optionIndex) => label.classList.toggle("correct", optionIndex === expectedIndex));
+        }
+      } else {
+        const studentAnswer = answerControl.value.trim();
+        answered = Boolean(studentAnswer);
+        if (answered && type === "fill_blank") {
+          const accepted = [item.correctAnswer, ...(Array.isArray(item.acceptedAnswers) ? item.acceptedAnswers : [])]
+            .map(value => String(value ?? "").trim().toLocaleLowerCase()).filter(Boolean);
+          const correct = accepted.includes(studentAnswer.toLocaleLowerCase());
+          feedback.textContent = (correct ? "Correct. " : "Compare with the accepted answer. ") + (item.explanation || ("Answer: " + String(item.correctAnswer || accepted[0] || "")));
+          feedback.style.color = correct ? "#396c43" : "#7b6650";
+        } else if (answered) {
+          feedback.textContent = "Reference answer: " + String(item.referenceAnswer || item.correctAnswer || "Review this concept in your syllabus.") + (item.explanation ? " — " + item.explanation : "");
+          feedback.style.color = "#506056";
+        }
+      }
+      if (!answered) {
+        feedback.textContent = "Choose or enter an answer first.";
+        feedback.style.color = "#a44c31";
+      }
       feedback.hidden = false;
-      card.querySelectorAll(".option").forEach((option, optionIndex) => option.classList.toggle("correct", optionIndex === correctIndex));
     });
-    card.append(options, check, feedback);
+    card.append(check, feedback);
     results.append(card);
   }
 }
