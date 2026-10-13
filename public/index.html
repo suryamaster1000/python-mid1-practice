@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=university-assessment-5">
-  <script type="module" src="./app.js?v=university-assessment-5"></script>
+  <link rel="stylesheet" href="./styles.css?v=university-assessment-6">
+  <script type="module" src="./app.js?v=university-assessment-6"></script>
 </head>
 <body>
   <header class="portal-topbar">
@@ -112,8 +112,19 @@
             <textarea id="syllabusInput" placeholder="Paste a syllabus here…&#10;&#10;Example:&#10;Unit I: Python fundamentals&#10;Variables, data types, operators, input and output…" maxlength="40000"></textarea>
             <div class="input-footer"><span id="fileName">No file selected</span><span id="charCount">0 / 40,000</span></div>
             <div class="settings-block">
+              <label for="questionTypeSelect">Question type</label>
+              <select id="questionTypeSelect">
+                <option value="auto" selected>Follow selected activity</option>
+                <option value="multiple_choice">Multiple choice (MCQ)</option>
+                <option value="true_false">True / False</option>
+                <option value="short_answer">Short answer / Theory</option>
+                <option value="fill_blank">Fill in the blanks</option>
+                <option value="mixed">Mixed question types</option>
+              </select>
               <label for="countSelect">Number of questions</label>
               <select id="countSelect"><option value="4">4 questions</option><option value="6" selected>6 questions</option><option value="8">8 questions</option><option value="12">12 questions</option></select>
+              <label for="difficultySelect">Difficulty</label>
+              <select id="difficultySelect"><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option><option value="mixed" selected>Mixed / Adaptive</option></select>
               <label for="levelSelect">Assessment standard</label>
               <select id="levelSelect"><option value="university" selected>University level</option><option value="advanced">Advanced university</option><option value="foundation">Foundation</option></select>
               <label for="durationSelect">Written test duration</label>
