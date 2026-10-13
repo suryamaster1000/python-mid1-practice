@@ -3,64 +3,137 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6f8f3">
-  <title>Syllabus Study Lab</title>
+  <meta name="theme-color" content="#142a4f">
+  <meta name="description" content="A student-friendly syllabus practice and online test portal.">
+  <title>Syllabus Study Lab | Student Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=cd9333f2">
-  <script type="module" src="./app.js"></script>
+  <link rel="stylesheet" href="./styles.css?v=lms-portal-1">
+  <script type="module" src="./app.js?v=lms-portal-1"></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="./" aria-label="Syllabus Study Lab home"><span class="brand-mark">S</span><span>Syllabus<span class="brand-light">Study Lab</span></span></a>
-    <div class="top-meta"><span class="online-dot"></span><span>AI study workspace</span><a href="https://github.com/suryamaster1000/python-mid1-practice" target="_blank" rel="noreferrer">Project repo ↗</a></div>
+  <header class="portal-topbar">
+    <a class="portal-brand" href="./" aria-label="Syllabus Study Lab dashboard">
+      <span class="brand-mark">S</span>
+      <span class="brand-name">Syllabus Study Lab<span>STUDENT PORTAL</span></span>
+    </a>
+    <div class="topbar-right">
+      <span class="portal-live"><span class="online-dot"></span> Learning workspace</span>
+      <div class="student-chip"><span class="student-avatar">S</span><span><b>Student</b><small id="topSessionLabel">Connecting…</small></span></div>
+    </div>
   </header>
-  <main class="shell">
-    <section class="intro">
-      <p class="eyebrow"><span>01</span> YOUR STUDY MATERIAL, MADE PRACTICEABLE</p>
-      <h1>Turn your syllabus into<br><em>a smarter study session.</em></h1>
-      <p class="intro-copy">Add your course outline. Take written tests graded with AI feedback, practice quick quizzes, and solve language-specific coding challenges.</p>
-    </section>
 
-    <section class="auth-strip" aria-label="Student access">
-      <div class="auth-copy"><span class="step-tag">STUDENT ACCESS</span><strong id="authStatus">Connecting securely…</strong><span id="authNote">Creating a temporary anonymous session. No account or password is needed.</span></div>
-    </section>
+  <div class="portal-layout">
+    <aside class="portal-sidebar" aria-label="Main navigation">
+      <div class="sidebar-label">WORKSPACE</div>
+      <nav class="side-nav">
+        <button class="nav-item active" data-view="dashboard" type="button"><span class="nav-icon">▦</span><span>Dashboard</span></button>
+        <button class="nav-item" data-view="test-center" type="button"><span class="nav-icon">▤</span><span>Test Center</span><span class="nav-tag">TEST</span></button>
+        <button class="nav-item" data-view="syllabus" type="button"><span class="nav-icon">▧</span><span>My Syllabus</span></button>
+        <button class="nav-item" data-view="results" type="button"><span class="nav-icon">◫</span><span>Results & Review</span></button>
+        <button class="nav-item" data-view="practice-lab" type="button"><span class="nav-icon">⌘</span><span>Practice Lab</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="sidebar-help-icon">?</div>
+        <strong>Study at your pace</strong>
+        <p>Use your course outline to create focused practice sessions and review your answers.</p>
+        <a href="https://github.com/suryamaster1000/python-mid1-practice" target="_blank" rel="noreferrer">About this project ↗</a>
+      </div>
+      <div class="sidebar-foot"><span class="secure-mark">✓</span><span>Private browser session<br><small>No account required</small></span></div>
+    </aside>
 
-    <section class="workspace">
-      <aside class="syllabus-panel">
-        <div class="panel-heading"><div><span class="step-tag">STEP 01</span><h2>Your syllabus</h2></div><span class="panel-icon">↳</span></div>
-        <label class="upload-zone" for="fileInput">
-          <span class="upload-symbol">↑</span>
-          <strong>Choose a syllabus file</strong>
-          <span>TXT or Markdown, up to 1 MB</span>
-          <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
-        </label>
-        <div class="or-divider"><span>OR PASTE TEXT</span></div>
-        <label class="sr-only" for="syllabusInput">Paste your syllabus</label>
-        <textarea id="syllabusInput" placeholder="Paste your syllabus here…&#10;&#10;For example:&#10;Unit I: Python fundamentals&#10;Variables, data types, operators, input and output…" maxlength="40000"></textarea>
-        <div class="input-footer"><span id="fileName">No file selected</span><span id="charCount">0 / 40,000</span></div>
-        <div class="generate-settings">
-          <label for="countSelect">Question count</label>
-          <select id="countSelect"><option value="4">4 questions</option><option value="6" selected>6 questions</option><option value="8">8 questions</option><option value="12">12 questions</option></select>
+    <main class="portal-main">
+      <section id="dashboardView" class="portal-view" aria-labelledby="dashboardTitle">
+        <div class="page-heading">
+          <div><p class="breadcrumbs">HOME <span>/</span> DASHBOARD</p><h1 id="dashboardTitle">Student dashboard</h1><p class="page-subtitle">Your personal space to prepare, take tests, and improve.</p></div>
+          <button class="primary-btn dashboard-cta" type="button" data-open-view="test-center"><span>Start a test</span><span aria-hidden="true">↗</span></button>
         </div>
-        <button id="generateBtn" class="primary-btn" type="button"><span>Generate study set</span><span aria-hidden="true">↗</span></button>
-        <p class="privacy-note"><span>✳</span> Your syllabus, answers, and code are sent to the AI service for generation or feedback. This app doesn’t store them.</p>
-      </aside>
 
-      <section class="results-panel" aria-live="polite">
-        <div class="panel-heading results-heading"><div><span class="step-tag">STEP 02</span><h2>Choose your practice</h2></div><span id="resultBadge" class="result-badge">READY WHEN YOU ARE</span></div>
-        <nav class="mode-tabs" aria-label="Question type">
-          <button class="mode-tab selected" data-mode="theory" type="button"><span>01</span>Theory Q&amp;A</button>
-          <button class="mode-tab" data-mode="test" type="button"><span>02</span>Written test</button>
-          <button class="mode-tab" data-mode="practice" type="button"><span>03</span>Practice quiz</button>
-          <button class="mode-tab" data-mode="code" type="button"><span>04</span>Code practice</button>
-        </nav>
-        <div id="message" class="message" role="status">Add your syllabus, choose a practice type, then generate your first study set.</div>
-        <div id="results" class="results-list"></div>
+        <section class="welcome-panel">
+          <div class="welcome-copy">
+            <span class="welcome-kicker">YOUR LEARNING JOURNEY</span>
+            <h2>Learn the concepts.<br><em>Prove what you know.</em></h2>
+            <p>Build practice sets from your syllabus, take a written assessment, and review feedback in one place.</p>
+            <button class="welcome-action" type="button" data-open-view="test-center">Go to Test Center <span>→</span></button>
+          </div>
+          <div class="welcome-art" aria-hidden="true"><div class="art-ring art-ring-one"></div><div class="art-ring art-ring-two"></div><div class="art-sheet"><span class="art-sheet-line"></span><span class="art-sheet-line short"></span><span class="art-check">✓</span><span class="art-sheet-line"></span><span class="art-sheet-line medium"></span></div><span class="art-star star-a">✦</span><span class="art-star star-b">✧</span></div>
+        </section>
+
+        <div class="stat-grid">
+          <article class="stat-card"><span class="stat-icon blue">▤</span><div><p>Tests completed</p><strong id="dashboardTestCount">0</strong><small>In this browser session</small></div></article>
+          <article class="stat-card"><span class="stat-icon green">✓</span><div><p>Latest test score</p><strong id="dashboardLatestScore">—</strong><small id="dashboardScoreNote">Complete a written test to see a score</small></div></article>
+          <article class="stat-card"><span class="stat-icon violet">◈</span><div><p>Ways to practise</p><strong>04</strong><small>Theory, test, quiz, and coding</small></div></article>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="content-card quick-start-card">
+            <div class="section-head"><div><span class="section-eyebrow">GET STARTED</span><h2>Choose your next activity</h2></div><span class="section-mark">01</span></div>
+            <button class="activity-row" type="button" data-open-mode="test"><span class="activity-icon navy">▤</span><span class="activity-copy"><b>Written examination</b><small>Answer questions, manage your time, and submit for feedback.</small></span><span class="activity-arrow">→</span></button>
+            <button class="activity-row" type="button" data-open-mode="practice"><span class="activity-icon blue">✓</span><span class="activity-copy"><b>Practice quiz</b><small>Multiple-choice questions with explanations.</small></span><span class="activity-arrow">→</span></button>
+            <button class="activity-row" type="button" data-open-mode="theory"><span class="activity-icon green">Aa</span><span class="activity-copy"><b>Theory Q&amp;A</b><small>Revise short answers and check reference responses.</small></span><span class="activity-arrow">→</span></button>
+            <button class="activity-row" type="button" data-open-mode="code"><span class="activity-icon violet">{ }</span><span class="activity-copy"><b>Coding practice</b><small>Work on syllabus-based programming challenges.</small></span><span class="activity-arrow">→</span></button>
+          </section>
+          <section class="content-card prep-card">
+            <div class="section-head"><div><span class="section-eyebrow">BEFORE YOU BEGIN</span><h2>Prepare your course</h2></div><span class="section-mark">02</span></div>
+            <div class="prep-illustration"><span class="prep-book">▤</span><span class="prep-spark">✦</span><div class="prep-lines"><i></i><i></i><i></i></div></div>
+            <h3>Start with your syllabus</h3><p>Paste your unit-wise outline or upload a text or Markdown file. The portal uses it to generate relevant practice questions.</p>
+            <button class="secondary-btn" type="button" data-open-view="syllabus">Add syllabus <span>→</span></button>
+            <div class="prep-note"><span>ⓘ</span> Written test scores are AI-generated practice estimates, not official grades.</div>
+          </section>
+        </div>
+        <div class="dashboard-footer"><span>SYLLABUS STUDY LAB</span><span>Consistency beats cramming.</span></div>
       </section>
-    </section>
-    <footer class="page-footer"><span>BUILT FOR ACTIVE RECALL</span><span>Practice a little. Remember a lot. <b>✳</b></span></footer>
-  </main>
+
+      <section id="workspaceView" class="portal-view" hidden aria-labelledby="workspaceTitle">
+        <div class="page-heading workspace-page-heading">
+          <div><p id="workspaceBreadcrumb" class="breadcrumbs">ASSESSMENTS <span>/</span> TEST CENTER</p><h1 id="workspaceTitle">Test Center</h1><p id="workspaceSubtitle" class="page-subtitle">Configure a session from your syllabus and attempt it like an online assessment.</p></div>
+          <button class="secondary-btn heading-back" type="button" data-open-view="dashboard">← Dashboard</button>
+        </div>
+        <section class="auth-strip" aria-label="Student access">
+          <div class="auth-status-icon">✓</div>
+          <div class="auth-copy"><strong id="authStatus">Connecting securely…</strong><span id="authNote">Creating a temporary anonymous session. No account or password is needed.</span></div>
+          <span class="session-label"><span class="online-dot"></span> SESSION STATUS</span>
+        </section>
+
+        <section class="workspace">
+          <aside class="syllabus-panel">
+            <div class="panel-heading"><div><span class="step-tag">STEP 01</span><h2>Assessment setup</h2></div><span class="panel-icon">⚙</span></div>
+            <label class="upload-zone" for="fileInput">
+              <span class="upload-symbol">↑</span>
+              <strong>Upload your syllabus</strong>
+              <span>TXT or Markdown · up to 1 MB</span>
+              <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+            </label>
+            <div class="or-divider"><span>OR PASTE YOUR COURSE OUTLINE</span></div>
+            <label class="sr-only" for="syllabusInput">Paste your syllabus</label>
+            <textarea id="syllabusInput" placeholder="Paste a syllabus here…&#10;&#10;Example:&#10;Unit I: Python fundamentals&#10;Variables, data types, operators, input and output…" maxlength="40000"></textarea>
+            <div class="input-footer"><span id="fileName">No file selected</span><span id="charCount">0 / 40,000</span></div>
+            <div class="settings-block">
+              <label for="countSelect">Number of questions</label>
+              <select id="countSelect"><option value="4">4 questions</option><option value="6" selected>6 questions</option><option value="8">8 questions</option><option value="12">12 questions</option></select>
+              <label for="durationSelect">Written test duration</label>
+              <select id="durationSelect"><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select>
+            </div>
+            <button id="generateBtn" class="primary-btn" type="button"><span>Generate assessment</span><span aria-hidden="true">↗</span></button>
+            <p class="privacy-note"><span>ⓘ</span> Your syllabus, answers, and code are sent to the AI service for generation or feedback. This app does not save them.</p>
+          </aside>
+
+          <section id="resultsPanel" class="results-panel" aria-live="polite">
+            <div class="panel-heading results-heading"><div><span class="step-tag">STEP 02</span><h2>Assessment workspace</h2></div><span id="resultBadge" class="result-badge">READY TO BEGIN</span></div>
+            <nav class="mode-tabs" aria-label="Assessment type">
+              <button class="mode-tab" data-mode="test" type="button"><span>01</span>Written test</button>
+              <button class="mode-tab selected" data-mode="theory" type="button"><span>02</span>Theory Q&amp;A</button>
+              <button class="mode-tab" data-mode="practice" type="button"><span>03</span>MCQ quiz</button>
+              <button class="mode-tab" data-mode="code" type="button"><span>04</span>Coding lab</button>
+            </nav>
+            <div id="message" class="message" role="status">Add your syllabus, choose an activity, and generate your first set.</div>
+            <div id="results" class="results-list"></div>
+          </section>
+        </section>
+        <div class="dashboard-footer"><span>ASSESSMENT WORKSPACE</span><span>Read each question carefully before submitting.</span></div>
+      </section>
+    </main>
+  </div>
 </body>
 </html>
