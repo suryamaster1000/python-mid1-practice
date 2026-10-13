@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#142a4f">
-  <meta name="description" content="A student-friendly syllabus practice and online test portal.">
-  <title>Syllabus Study Lab | Student Portal</title>
+  <meta name="description" content="An interactive university assessment portal with syllabus-based timed tests, quizzes, and feedback.">
+  <title>Syllabus Study Lab | University Assessment Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=lms-portal-3">
-  <script type="module" src="./app.js?v=lms-portal-3"></script>
+  <link rel="stylesheet" href="./styles.css?v=university-assessment-4">
+  <script type="module" src="./app.js?v=university-assessment-4"></script>
 </head>
 <body>
   <header class="portal-topbar">
@@ -46,7 +46,7 @@
     <main class="portal-main">
       <section id="dashboardView" class="portal-view" aria-labelledby="dashboardTitle">
         <div class="page-heading">
-          <div><p class="breadcrumbs">HOME <span>/</span> DASHBOARD</p><h1 id="dashboardTitle">Student dashboard</h1><p class="page-subtitle">Your personal space to prepare, take tests, and improve.</p></div>
+          <div><p class="breadcrumbs">HOME <span>/</span> DASHBOARD</p><h1 id="dashboardTitle">Student dashboard</h1><p class="page-subtitle">Prepare from your syllabus, take interactive university-level assessments, and review feedback.</p></div>
           <button class="primary-btn dashboard-cta" type="button" data-open-view="test-center"><span>Start a test</span><span aria-hidden="true">↗</span></button>
         </div>
 
@@ -70,7 +70,7 @@
           <section class="content-card quick-start-card">
             <div class="section-head"><div><span class="section-eyebrow">GET STARTED</span><h2>Choose your next activity</h2></div><span class="section-mark">01</span></div>
             <button class="activity-row" type="button" data-open-mode="test"><span class="activity-icon navy">▤</span><span class="activity-copy"><b>Written examination</b><small>Answer questions, manage your time, and submit for feedback.</small></span><span class="activity-arrow">→</span></button>
-            <a class="activity-row external-activity" href="https://surfsdfad.app.n8n.cloud/form/syllabus-test-generator" target="_blank" rel="noopener noreferrer"><span class="activity-icon amber">PDF</span><span class="activity-copy"><b>PDF Syllabus Test</b><small>Upload a PDF, TXT, or Markdown syllabus and configure your test.</small></span><span class="activity-arrow">↗</span></a>
+            
             <button class="activity-row" type="button" data-open-mode="practice"><span class="activity-icon blue">✓</span><span class="activity-copy"><b>Practice quiz</b><small>Multiple-choice questions with explanations.</small></span><span class="activity-arrow">→</span></button>
             <button class="activity-row" type="button" data-open-mode="theory"><span class="activity-icon green">Aa</span><span class="activity-copy"><b>Theory Q&amp;A</b><small>Revise short answers and check reference responses.</small></span><span class="activity-arrow">→</span></button>
             <button class="activity-row" type="button" data-open-mode="code"><span class="activity-icon violet">{ }</span><span class="activity-copy"><b>Coding practice</b><small>Work on syllabus-based programming challenges.</small></span><span class="activity-arrow">→</span></button>
@@ -100,12 +100,12 @@
         <section class="workspace">
           <aside class="syllabus-panel">
             <div class="panel-heading"><div><span class="step-tag">STEP 01</span><h2>Assessment setup</h2></div><span class="panel-icon">⚙</span></div>
-            <a class="n8n-pdf-card" href="https://surfsdfad.app.n8n.cloud/form/syllabus-test-generator" target="_blank" rel="noopener noreferrer"><span class="n8n-pdf-icon">PDF</span><span class="n8n-pdf-copy"><b>Use Syllabus File Test</b><small>Powered by your n8n workflow · Opens in a new tab</small></span><span class="n8n-pdf-arrow">↗</span></a>
+            
             <label class="upload-zone" for="fileInput">
               <span class="upload-symbol">↑</span>
               <strong>Upload your syllabus</strong>
-              <span>TXT or Markdown · up to 1 MB</span>
-              <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden>
+              <span>PDF, TXT, or Markdown · up to 10 MB</span>
+              <input id="fileInput" type="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" hidden>
             </label>
             <div class="or-divider"><span>OR PASTE YOUR COURSE OUTLINE</span></div>
             <label class="sr-only" for="syllabusInput">Paste your syllabus</label>
@@ -114,6 +114,8 @@
             <div class="settings-block">
               <label for="countSelect">Number of questions</label>
               <select id="countSelect"><option value="4">4 questions</option><option value="6" selected>6 questions</option><option value="8">8 questions</option><option value="12">12 questions</option></select>
+              <label for="levelSelect">Assessment standard</label>
+              <select id="levelSelect"><option value="university" selected>University level</option><option value="advanced">Advanced university</option><option value="foundation">Foundation</option></select>
               <label for="durationSelect">Written test duration</label>
               <select id="durationSelect"><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option></select>
             </div>
