@@ -1,6 +1,6 @@
 # Syllabus Study Lab
 
-Syllabus Study Lab is an interactive university-level assessment portal. Students upload a text-based PDF, TXT, or Markdown syllabus (or paste an outline), configure the assessment standard, question count, and duration, then take timed tests and review AI feedback inside the website. Students can start without an email or password; Supabase creates a temporary anonymous session in the current browser.
+Syllabus Study Lab is an interactive university-level assessment portal. Students upload a text-based PDF, TXT, or Markdown syllabus (or paste an outline), choose the question type, question count, difficulty, assessment standard, and duration, then take timed tests and review AI feedback inside the website. Students can start without an email or password; Supabase creates a temporary anonymous session in the current browser.
 
 ## Student activities
 
