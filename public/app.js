@@ -36,6 +36,7 @@ let examTimerController = null;
 const modeSnapshots = new Map();
 const modeData = new Map();
 const SESSION_STATE_KEY = "syllabus-study-lab.session.v2";
+const SESSION_SETTINGS_KEY = "syllabus-study-lab.settings.v1";
 let isRestoringSession = false;
 let sessionSaveTimer = null;
 let activePortalView = "dashboard";
@@ -199,6 +200,23 @@ function captureModeUi(mode) {
   return {};
 }
 
+function persistSessionSettings() {
+  if (isRestoringSession) return;
+  try {
+    window.sessionStorage.setItem(SESSION_SETTINGS_KEY, JSON.stringify({
+      syllabus: syllabusInput.value,
+      fileName: fileName.textContent,
+      count: countSelect.value,
+      duration: durationSelect?.value || "30",
+      level: levelSelect?.value || "university",
+      questionType: questionTypeSelect?.value || "auto",
+      difficulty: difficultySelect?.value || "mixed"
+    }));
+  } catch (error) {
+    console.warn("Could not persist the temporary session settings.", error);
+  }
+}
+
 function queueSessionSave() {
   if (isRestoringSession) return;
   if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
@@ -247,31 +265,37 @@ function saveAppSession() {
 }
 
 async function restorePersistentSession(saved) {
-  if (!saved || saved.version !== 2) return;
+  let settings = {};
+  try {
+    settings = JSON.parse(window.sessionStorage.getItem(SESSION_SETTINGS_KEY) || "{}") || {};
+  } catch {}
+  const state = saved?.version === 2 ? saved : {};
+  if (!Object.keys(state).length && !Object.keys(settings).length) return;
+  const config = { ...state, ...settings };
   isRestoringSession = true;
   try {
-    syllabusInput.value = typeof saved.syllabus === "string" ? saved.syllabus : "";
-    fileName.textContent = saved.fileName || "No file selected";
-    countSelect.value = saved.count || "6";
-    if (durationSelect) durationSelect.value = saved.duration || "30";
-    if (levelSelect) levelSelect.value = saved.level || "university";
-    if (questionTypeSelect) questionTypeSelect.value = saved.questionType || "auto";
-    if (difficultySelect) difficultySelect.value = saved.difficulty || "mixed";
+    syllabusInput.value = typeof config.syllabus === "string" ? config.syllabus : "";
+    fileName.textContent = config.fileName || "No file selected";
+    countSelect.value = config.count || "6";
+    if (durationSelect) durationSelect.value = config.duration || "30";
+    if (levelSelect) levelSelect.value = config.level || "university";
+    if (questionTypeSelect) questionTypeSelect.value = config.questionType || "auto";
+    if (difficultySelect) difficultySelect.value = config.difficulty || "mixed";
     updateCount();
 
-    sessionTestsCompleted = Number(saved.sessionTestsCompleted) || 0;
-    latestScorePercent = saved.latestScorePercent == null ? null : Number(saved.latestScorePercent);
+    sessionTestsCompleted = Number(state.sessionTestsCompleted) || 0;
+    latestScorePercent = state.latestScorePercent == null ? null : Number(state.latestScorePercent);
     if (dashboardTestCount) dashboardTestCount.textContent = String(sessionTestsCompleted);
     if (dashboardLatestScore) dashboardLatestScore.textContent = latestScorePercent === null ? "—" : latestScorePercent + "%";
     if (dashboardScoreNote && latestScorePercent !== null) dashboardScoreNote.textContent = "Latest written test · session only";
 
     modeData.clear();
     modeSnapshots.clear();
-    for (const [mode, stored] of Object.entries(saved.modes || {})) {
+    for (const [mode, stored] of Object.entries(state.modes || {})) {
       if (stored && stored.data) modeData.set(mode, stored);
     }
 
-    const wantedMode = modeData.has(saved.activeMode) ? saved.activeMode : "theory";
+    const wantedMode = modeData.has(state.activeMode) ? state.activeMode : "theory";
     for (const mode of ["theory", "practice", "test", "code"]) {
       const stored = modeData.get(mode);
       if (!stored) continue;
@@ -320,11 +344,20 @@ async function restorePersistentSession(saved) {
     currentTestToken = activeMode === "test" ? modeData.get("test")?.data?.testToken || null : null;
     if (activeMode === "test") examTimerController?.resume();
     else examTimerController?.pause();
-    openPortalView(saved.activeView || "dashboard", activeMode);
+    openPortalView(state.activeView || "dashboard", activeMode);
+    syllabusInput.value = typeof config.syllabus === "string" ? config.syllabus : "";
+    fileName.textContent = config.fileName || "No file selected";
+    countSelect.value = config.count || "6";
+    if (durationSelect) durationSelect.value = config.duration || "30";
+    if (levelSelect) levelSelect.value = config.level || "university";
+    if (questionTypeSelect) questionTypeSelect.value = config.questionType || "auto";
+    if (difficultySelect) difficultySelect.value = config.difficulty || "mixed";
+    updateCount();
   } catch (error) {
     console.warn("Could not restore this temporary study session.", error);
   } finally {
     isRestoringSession = false;
+    persistSessionSettings();
     queueSessionSave();
   }
 }
@@ -476,6 +509,8 @@ generateBtn.addEventListener("click", async () => {
     syllabusInput.focus();
     return;
   }
+  persistSessionSettings();
+  saveAppSession();
   if (activeMode === "test") {
     examTimerController?.stop();
     examTimerController = null;
@@ -986,10 +1021,22 @@ function renderCode(problem, ui = {}) {
   results.append(card);
 }
 
-document.addEventListener("input", queueSessionSave);
-document.addEventListener("change", queueSessionSave);
-document.addEventListener("click", queueSessionSave);
-window.addEventListener("pagehide", saveAppSession);
+document.addEventListener("input", () => {
+  persistSessionSettings();
+  queueSessionSave();
+});
+document.addEventListener("change", () => {
+  persistSessionSettings();
+  queueSessionSave();
+});
+document.addEventListener("click", () => {
+  persistSessionSettings();
+  queueSessionSave();
+});
+window.addEventListener("pagehide", () => {
+  persistSessionSettings();
+  saveAppSession();
+});
 
 function runCode(code, problem, button, output) {
   button.disabled = true;
