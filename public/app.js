@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 const supabase = createClient(
   "https://wewoaiuxnagmzkbhlsyt.supabase.co",
   "sb_publishable_TfwYeoDBS9LZyHRckOvfrA_fEiOkDrH",
-  { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
+  { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage: window.sessionStorage, storageKey: "syllabus-study-lab-auth-v2" } }
 );
 const authStatus = document.querySelector("#authStatus");
 const authNote = document.querySelector("#authNote");
@@ -34,8 +34,21 @@ let currentTestToken = null;
 let examTimerInterval = null;
 let examTimerController = null;
 const modeSnapshots = new Map();
+const modeData = new Map();
+const SESSION_STATE_KEY = "syllabus-study-lab.session.v2";
+let isRestoringSession = false;
+let sessionSaveTimer = null;
+let activePortalView = "dashboard";
 let questionTypeTriggeredModeSwitch = false;
 let lastQuestionTypeValue = questionTypeSelect?.value || "auto";
+const bootSessionState = (() => {
+  try {
+    const saved = window.sessionStorage.getItem(SESSION_STATE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+})();
 let sessionTestsCompleted = 0;
 let latestScorePercent = null;
 
@@ -51,10 +64,11 @@ async function syncAuth(session) {
 supabase.auth.onAuthStateChange((_event, session) => {
   queueMicrotask(() => syncAuth(session));
 });
-supabase.auth.getSession().then(async ({ data, error }) => { if (error) throw error; let session = data.session; if (!session) { const { data: anonymousData, error: anonymousError } = await supabase.auth.signInAnonymously(); if (anonymousError) throw anonymousError; session = anonymousData.session; } await syncAuth(session); }).catch(error => { authStatus.textContent = "Connection needed"; authNote.textContent = error.message || "Anonymous access is not available right now."; authNote.classList.add("auth-note-error"); generateBtn.disabled = true; });
+supabase.auth.getSession().then(async ({ data, error }) => { if (error) throw error; let session = data.session; if (!session) { const { data: anonymousData, error: anonymousError } = await supabase.auth.signInAnonymously(); if (anonymousError) throw anonymousError; session = anonymousData.session; } await syncAuth(session); await restorePersistentSession(bootSessionState); }).catch(error => { authStatus.textContent = "Connection needed"; authNote.textContent = error.message || "Anonymous access is not available right now."; authNote.classList.add("auth-note-error"); generateBtn.disabled = true; });
 
 
 function openPortalView(view, requestedMode = null) {
+  activePortalView = view;
   const dashboard = document.querySelector("#dashboardView");
   const workspace = document.querySelector("#workspaceView");
   if (dashboard) dashboard.hidden = view !== "dashboard";
@@ -114,7 +128,207 @@ function setMessage(text, kind = "") {
   message.textContent = text;
   message.className = "message" + (kind ? " " + kind : "");
   message.hidden = false;
+  queueSessionSave();
 }
+
+function modeRoot(mode) {
+  if (mode === activeMode) return results;
+  return modeSnapshots.get(mode)?.fragment || null;
+}
+
+function captureModeUi(mode) {
+  const root = modeRoot(mode);
+  if (!root) return modeData.get(mode)?.ui || {};
+  if (mode === "theory") {
+    return {
+      openAnswers: [...root.querySelectorAll(".question-card")].map((card, index) =>
+        card.querySelector(".answer-box") && !card.querySelector(".answer-box").hidden ? index : -1
+      ).filter(index => index >= 0)
+    };
+  }
+  if (mode === "practice") {
+    return { questions: [...root.querySelectorAll(".question-card")].map(card => {
+      const radios = [...card.querySelectorAll('input[type="radio"]')];
+      const checkedIndex = radios.findIndex(input => input.checked);
+      const answer = card.querySelector(".written-answer");
+      const feedback = card.querySelector(".quiz-feedback");
+      return {
+        checkedIndex: checkedIndex >= 0 ? checkedIndex : null,
+        answerValue: answer?.value || "",
+        feedbackVisible: Boolean(feedback && !feedback.hidden),
+        feedbackText: feedback?.textContent || "",
+        feedbackColor: feedback?.style.color || ""
+      };
+    }) };
+  }
+  if (mode === "test") {
+    const questions = [...root.querySelectorAll(".test-question")];
+    const gradePanel = root.querySelector(".grade-panel");
+    const submit = root.querySelector(".submit-test");
+    const oldUi = modeData.get(mode)?.ui || {};
+    return {
+      answers: questions.map(card => card.querySelector(".written-answer")?.value || ""),
+      reviewMarked: questions.map((card, index) =>
+        card.querySelector(".mark-review-btn")?.getAttribute("aria-pressed") === "true" ? index : -1
+      ).filter(index => index >= 0),
+      remainingSeconds: examTimerController?.getRemainingSeconds?.() ?? oldUi.remainingSeconds,
+      gradeHtml: gradePanel?.innerHTML || "",
+      gradeHidden: gradePanel?.hidden ?? true,
+      submitted: submit?.textContent === "Test submitted",
+      submitText: submit?.textContent || "Submit written test"
+    };
+  }
+  if (mode === "code") {
+    const editor = root.querySelector(".code-editor");
+    const status = root.querySelector(".code-card .message");
+    const evaluation = root.querySelector(".code-grade");
+    const runOutput = root.querySelector(".run-output");
+    const preview = root.querySelector(".html-preview");
+    return {
+      editorValue: editor?.value ?? "",
+      statusText: status?.textContent || "",
+      statusClass: status?.className || "message",
+      statusHidden: status?.hidden ?? false,
+      evaluationHtml: evaluation?.innerHTML || "",
+      evaluationHidden: evaluation?.hidden ?? true,
+      runOutputText: runOutput?.textContent || "",
+      runOutputClass: runOutput?.className || "run-output",
+      previewOpen: preview?.open ?? false
+    };
+  }
+  return {};
+}
+
+function queueSessionSave() {
+  if (isRestoringSession) return;
+  if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(saveAppSession, 80);
+}
+
+function saveAppSession() {
+  if (isRestoringSession) return;
+  try {
+    const savedModes = {};
+    for (const [mode, stored] of modeData) {
+      const snapshot = modeSnapshots.get(mode);
+      const isActive = mode === activeMode;
+      const updated = {
+        ...stored,
+        ui: captureModeUi(mode),
+        questionType: isActive ? (questionTypeSelect?.value || stored.questionType || "auto") : (snapshot?.questionType || stored.questionType || "auto"),
+        difficulty: isActive ? (difficultySelect?.value || stored.difficulty || "mixed") : (snapshot?.difficulty || stored.difficulty || "mixed"),
+        messageText: isActive ? message.textContent : (snapshot?.messageText ?? stored.messageText ?? ""),
+        messageClass: isActive ? message.className : (snapshot?.messageClass ?? stored.messageClass ?? "message"),
+        messageHidden: isActive ? message.hidden : (snapshot?.messageHidden ?? stored.messageHidden ?? true),
+        badgeText: isActive ? resultBadge.textContent : (snapshot?.badgeText ?? stored.badgeText ?? "READY TO BEGIN")
+      };
+      modeData.set(mode, updated);
+      savedModes[mode] = updated;
+    }
+    const state = {
+      version: 2,
+      activeMode,
+      activeView: activePortalView,
+      syllabus: syllabusInput.value,
+      fileName: fileName.textContent,
+      count: countSelect.value,
+      duration: durationSelect?.value || "30",
+      level: levelSelect?.value || "university",
+      questionType: questionTypeSelect?.value || "auto",
+      difficulty: difficultySelect?.value || "mixed",
+      sessionTestsCompleted,
+      latestScorePercent,
+      modes: savedModes
+    };
+    window.sessionStorage.setItem(SESSION_STATE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.warn("Could not persist this temporary study session.", error);
+  }
+}
+
+async function restorePersistentSession(saved) {
+  if (!saved || saved.version !== 2) return;
+  isRestoringSession = true;
+  try {
+    syllabusInput.value = typeof saved.syllabus === "string" ? saved.syllabus : "";
+    fileName.textContent = saved.fileName || "No file selected";
+    countSelect.value = saved.count || "6";
+    if (durationSelect) durationSelect.value = saved.duration || "30";
+    if (levelSelect) levelSelect.value = saved.level || "university";
+    if (questionTypeSelect) questionTypeSelect.value = saved.questionType || "auto";
+    if (difficultySelect) difficultySelect.value = saved.difficulty || "mixed";
+    updateCount();
+
+    sessionTestsCompleted = Number(saved.sessionTestsCompleted) || 0;
+    latestScorePercent = saved.latestScorePercent == null ? null : Number(saved.latestScorePercent);
+    if (dashboardTestCount) dashboardTestCount.textContent = String(sessionTestsCompleted);
+    if (dashboardLatestScore) dashboardLatestScore.textContent = latestScorePercent === null ? "—" : latestScorePercent + "%";
+    if (dashboardScoreNote && latestScorePercent !== null) dashboardScoreNote.textContent = "Latest written test · session only";
+
+    modeData.clear();
+    modeSnapshots.clear();
+    for (const [mode, stored] of Object.entries(saved.modes || {})) {
+      if (stored && stored.data) modeData.set(mode, stored);
+    }
+
+    const wantedMode = modeData.has(saved.activeMode) ? saved.activeMode : "theory";
+    for (const mode of ["theory", "practice", "test", "code"]) {
+      const stored = modeData.get(mode);
+      if (!stored) continue;
+      activeMode = mode;
+      results.replaceChildren();
+      currentProblem = null;
+      currentTestToken = null;
+      if (questionTypeSelect) questionTypeSelect.value = stored.questionType || (mode === "practice" ? "multiple_choice" : "short_answer");
+      if (difficultySelect) difficultySelect.value = stored.difficulty || "mixed";
+      if (mode === "theory") renderTheory(stored.data, stored.ui || {});
+      else if (mode === "practice") renderQuiz(stored.data, stored.ui || {});
+      else if (mode === "test") renderTest(stored.data, stored.ui || {});
+      else if (mode === "code") renderCode(stored.data, stored.ui || {});
+
+      const fragment = document.createDocumentFragment();
+      while (results.firstChild) fragment.append(results.firstChild);
+      const snapshot = {
+        fragment,
+        messageText: stored.messageText || defaultModeMessage(mode),
+        messageClass: stored.messageClass || "message",
+        messageHidden: Boolean(stored.messageHidden),
+        badgeText: stored.badgeText || (stored.data.questions ? stored.data.questions.length + " QUESTIONS" : "READY TO BEGIN"),
+        currentProblem: mode === "code" ? stored.data : null,
+        currentTestToken: mode === "test" ? stored.data.testToken : null,
+        questionType: stored.questionType || "auto",
+        difficulty: stored.difficulty || "mixed"
+      };
+      modeSnapshots.set(mode, snapshot);
+      if (mode === "test" && mode !== wantedMode) examTimerController?.pause();
+    }
+
+    activeMode = wantedMode;
+    tabs.forEach(item => item.classList.toggle("selected", item.dataset.mode === activeMode));
+    results.replaceChildren();
+    const current = modeSnapshots.get(activeMode);
+    if (current) {
+      results.append(current.fragment);
+      message.textContent = current.messageText;
+      message.className = current.messageClass;
+      message.hidden = current.messageHidden;
+      resultBadge.textContent = current.badgeText;
+    } else {
+      setMessage(defaultModeMessage(activeMode));
+    }
+    currentProblem = activeMode === "code" ? modeData.get("code")?.data || null : null;
+    currentTestToken = activeMode === "test" ? modeData.get("test")?.data?.testToken || null : null;
+    if (activeMode === "test") examTimerController?.resume();
+    else examTimerController?.pause();
+    openPortalView(saved.activeView || "dashboard", activeMode);
+  } catch (error) {
+    console.warn("Could not restore this temporary study session.", error);
+  } finally {
+    isRestoringSession = false;
+    queueSessionSave();
+  }
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -200,7 +414,8 @@ tabs.forEach(tab => tab.addEventListener("click", () => {
     badgeText: resultBadge.textContent,
     currentProblem,
     currentTestToken,
-    questionType: questionTypeTriggeredModeSwitch ? lastQuestionTypeValue : (questionTypeSelect?.value || "auto")
+    questionType: questionTypeSelect?.value || "auto",
+    difficulty: difficultySelect?.value || "mixed"
   });
 
   activeMode = nextMode;
@@ -266,6 +481,7 @@ generateBtn.addEventListener("click", async () => {
     examTimerController = null;
   }
   modeSnapshots.delete(activeMode);
+  modeData.delete(activeMode);
   results.replaceChildren();
   currentProblem = null;
   currentTestToken = null;
@@ -295,6 +511,14 @@ generateBtn.addEventListener("click", async () => {
     }
     message.hidden = true;
     resultBadge.textContent = activeMode === "code" ? (data.available === false ? "NO CODE TOPICS" : `${String(data.language || "CODE").toUpperCase()} CHALLENGE`) : `${data.questions?.length ?? 0} QUESTIONS`;
+    if (!(activeMode === "code" && data.available === false)) {
+      modeData.set(activeMode, {
+        data,
+        questionType: questionTypeSelect?.value || "auto",
+        difficulty: difficultySelect?.value || "mixed",
+        ui: {}
+      });
+    }
     if (activeMode === "code") {
       if (data.available === false) setMessage(data.reason || "No coding topic was found in this syllabus.", "error");
       else renderCode(data);
@@ -310,10 +534,11 @@ generateBtn.addEventListener("click", async () => {
   } finally {
     generateBtn.disabled = false;
     generateBtn.querySelector("span:first-child").textContent = "Generate study set";
+    queueSessionSave();
   }
 });
 
-function renderTheory(data) {
+function renderTheory(data, ui = {}) {
   for (const [index, item] of (data.questions || []).entries()) {
     const card = el("article", "question-card");
     const top = el("div", "question-top");
@@ -338,6 +563,7 @@ function renderTheory(data) {
     });
     card.append(toggle, answer);
     results.append(card);
+    if (Array.isArray(ui.openAnswers) && ui.openAnswers.includes(index)) toggle.click();
   }
 }
 
@@ -354,7 +580,7 @@ async function invokeFunction(body) {
   return data;
 }
 
-function renderTest(test) {
+function renderTest(test, ui = {}) {
   currentTestToken = test.testToken;
   if (!Array.isArray(test.questions) || !test.questions.length) throw new Error("The test did not include any questions. Please try again.");
 
@@ -372,7 +598,7 @@ function renderTest(test) {
   timer.setAttribute("role", "timer");
   timer.setAttribute("aria-live", "off");
   const durationMins = Math.max(1, Number(durationSelect?.value) || 30);
-  let secondsLeft = durationMins * 60;
+  let secondsLeft = Number.isFinite(Number(ui.remainingSeconds)) ? Math.max(1, Number(ui.remainingSeconds)) : durationMins * 60;
   let timeExpired = false;
   const updateTimer = () => {
     const mins = Math.floor(Math.max(0, secondsLeft) / 60);
@@ -406,6 +632,7 @@ function renderTest(test) {
     answer.placeholder = "Write your answer here…";
     answer.maxLength = 8000;
     answer.setAttribute("aria-label", "Answer for question " + number);
+    answer.value = Array.isArray(ui.answers) ? (ui.answers[index] || "") : "";
     answerFields.set(question.id, answer);
     card.append(answer);
 
@@ -433,6 +660,8 @@ function renderTest(test) {
       answer.focus({ preventScroll: true });
     });
     palette.append(paletteButton);
+    if (answer.value.trim()) paletteButton.classList.add("answered");
+    if (Array.isArray(ui.reviewMarked) && ui.reviewMarked.includes(index)) markReview.click();
   }
   const legend = el("span", "palette-legend");
   legend.append(el("span", "", "● Answered"), el("span", "", "● Review"));
@@ -447,7 +676,16 @@ function renderTest(test) {
   const submitNote = el("span", "test-submit-note", "Submission ends the timer. AI feedback appears after evaluation.");
   submitRow.append(submit, submitNote);
   const gradePanel = el("section", "grade-panel");
-  gradePanel.hidden = true;
+  gradePanel.hidden = ui.gradeHidden ?? true;
+  if (typeof ui.gradeHtml === "string" && ui.gradeHtml) gradePanel.innerHTML = ui.gradeHtml;
+  if (ui.submitted) {
+    for (const field of answerFields.values()) field.disabled = true;
+    for (const card of questionCards) card.querySelector(".mark-review-btn")?.setAttribute("disabled", "true");
+    submit.disabled = true;
+    submit.textContent = "Test submitted";
+  } else if (ui.submitText && ui.submitText !== "Test submitted") {
+    submit.textContent = ui.submitText;
+  }
   results.append(submitRow, gradePanel);
 
   submit.addEventListener("click", async () => {
@@ -515,6 +753,7 @@ function renderTest(test) {
       return;
     }
     updateTimer();
+    queueSessionSave();
   };
   examTimerController = {
     pause() {
@@ -529,13 +768,16 @@ function renderTest(test) {
     stop() {
       if (examTimerInterval) clearInterval(examTimerInterval);
       examTimerInterval = null;
+    },
+    getRemainingSeconds() {
+      return secondsLeft;
     }
   };
   examTimerController.resume();
   window.setTimeout(() => questionCards[0]?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
 }
 
-function renderQuiz(data) {
+function renderQuiz(data, ui = {}) {
   const formatLabels = {
     multiple_choice: "MCQ",
     true_false: "True / False",
@@ -543,6 +785,7 @@ function renderQuiz(data) {
     short_answer: "Short answer"
   };
   for (const [index, item] of (data.questions || []).entries()) {
+    const savedQuestionUi = ui.questions?.[index] || {};
     const selectedType = questionTypeSelect?.value || "multiple_choice";
     const type = ["multiple_choice", "true_false", "fill_blank", "short_answer"].includes(item.type)
       ? item.type
@@ -626,10 +869,21 @@ function renderQuiz(data) {
     });
     card.append(check, feedback);
     results.append(card);
+    if (savedQuestionUi.checkedIndex !== null && savedQuestionUi.checkedIndex !== undefined) {
+      const savedRadio = card.querySelectorAll('input[type="radio"]')[savedQuestionUi.checkedIndex];
+      if (savedRadio) savedRadio.checked = true;
+    }
+    if (answerControl && typeof savedQuestionUi.answerValue === "string") answerControl.value = savedQuestionUi.answerValue;
+    if (savedQuestionUi.feedbackVisible) {
+      check.click();
+      if (savedQuestionUi.feedbackText) feedback.textContent = savedQuestionUi.feedbackText;
+      if (savedQuestionUi.feedbackColor) feedback.style.color = savedQuestionUi.feedbackColor;
+      feedback.hidden = false;
+    }
   }
 }
 
-function renderCode(problem) {
+function renderCode(problem, ui = {}) {
   currentProblem = problem;
   if (!problem || !problem.challengeToken || !problem.language) throw new Error("The generated challenge is incomplete. Please try again.");
   const card = el("article", "code-card");
@@ -648,7 +902,7 @@ function renderCode(problem) {
   editor.autocomplete = "off";
   editor.setAttribute("aria-label", `${problem.language} code editor`);
   editor.maxLength = 30000;
-  editor.value = problem.starterCode || "";
+  editor.value = typeof ui.editorValue === "string" ? ui.editorValue : (problem.starterCode || "");
   const actions = el("div", "editor-actions");
   const evaluate = el("button", "run-btn", "✳  Submit code for AI evaluation");
   evaluate.type = "button";
@@ -662,6 +916,8 @@ function renderCode(problem) {
     const run = el("button", "answer-toggle", "▶ Run example tests");
     run.type = "button";
     const output = el("pre", "run-output");
+    output.textContent = ui.runOutputText || "";
+    if (ui.runOutputClass) output.className = ui.runOutputClass;
     localActions.append(run, el("span", "editor-note", "Runs locally in this browser"));
     card.append(localActions, output);
     run.addEventListener("click", () => runCode(editor.value, problem, run, output));
@@ -676,15 +932,19 @@ function renderCode(problem) {
     frame.setAttribute("sandbox", "allow-scripts");
     frame.srcdoc = "<p style='font:14px sans-serif;color:#68766e;padding:12px'>Your page preview appears here.</p>";
     preview.append(frame);
+    preview.open = Boolean(ui.previewOpen);
+    if (ui.editorValue) frame.srcdoc = ui.editorValue;
     const refresh = el("button", "answer-toggle", "Refresh preview");
     refresh.type = "button";
     refresh.addEventListener("click", () => { frame.srcdoc = editor.value; });
     card.append(preview, refresh);
   }
 
-  const status = el("div", "message", "AI feedback is an estimate for practice, not an official exam grade.");
+  const status = el("div", ui.statusClass || "message", typeof ui.statusText === "string" && ui.statusText ? ui.statusText : "AI feedback is an estimate for practice, not an official exam grade.");
+  status.hidden = ui.statusHidden ?? false;
   const evaluation = el("section", "grade-panel code-grade");
-  evaluation.hidden = true;
+  evaluation.hidden = ui.evaluationHidden ?? true;
+  if (typeof ui.evaluationHtml === "string" && ui.evaluationHtml) evaluation.innerHTML = ui.evaluationHtml;
   card.append(status, evaluation);
   evaluate.addEventListener("click", async () => {
     if (!editor.value.trim()) { setMessage("Write some code before submitting it for feedback.", "error"); editor.focus(); return; }
@@ -725,6 +985,11 @@ function renderCode(problem) {
   });
   results.append(card);
 }
+
+document.addEventListener("input", queueSessionSave);
+document.addEventListener("change", queueSessionSave);
+document.addEventListener("click", queueSessionSave);
+window.addEventListener("pagehide", saveAppSession);
 
 function runCode(code, problem, button, output) {
   button.disabled = true;
