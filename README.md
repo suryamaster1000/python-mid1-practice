@@ -1,6 +1,6 @@
 # Syllabus Study Lab
 
-Syllabus Study Lab is an interactive university-level assessment portal. Students upload a text-based PDF, TXT, or Markdown syllabus (or paste an outline), choose the question type, question count, difficulty, assessment standard, and duration, then take timed tests and review AI feedback inside the website. Students can start without an email or password; Supabase creates a temporary anonymous session in the current browser.
+Syllabus Study Lab is an interactive university-level assessment portal. Students upload a text-based PDF, TXT, or Markdown syllabus (or paste an outline), choose the question type, question count, difficulty, assessment standard, and duration, then take timed tests and review AI feedback inside the website. Students can start without an email or password; Supabase creates a temporary anonymous session scoped to the current browser tab. The portal uses sessionStorage to retain the syllabus, settings, generated study sets, answers, feedback, and unfinished written-test progress across internal navigation and page refreshes. Closing the tab ends the temporary session and the browser clears its sessionStorage.
 
 ## Student activities
 
@@ -21,4 +21,4 @@ The Edge Function source is in `supabase/functions/generate-study-set/index.ts`.
 
 ## Privacy and session behavior
 
-Syllabus text, submitted test answers, and submitted code are sent to the Edge Function for AI generation or evaluation and are not saved by this app. Encrypted assessment and challenge tokens expire after one hour and are tied to the anonymous session that created them. Clearing browser data or switching browsers starts a new session.
+Syllabus text, assessment answers, generated practice sets, and in-progress answers are kept temporarily in the current tab's sessionStorage so the student can refresh the page or switch activities without losing progress. Closing the tab ends the temporary session and clears that browser-tab storage. Syllabus text, submitted test answers, and submitted code are sent to the Edge Function for AI generation or evaluation; they are not saved to a persistent app database. Encrypted assessment and challenge tokens expire after one hour and are tied to the anonymous session that created them.
