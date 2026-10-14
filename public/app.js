@@ -271,7 +271,25 @@ async function restorePersistentSession(saved) {
   } catch {}
   const state = saved?.version === 2 ? saved : {};
   if (!Object.keys(state).length && !Object.keys(settings).length) return;
-  const config = { ...state, ...settings };
+  const activeModeData = state.modes?.[state.activeMode] || null;
+  const generatedQuestionCount = Array.isArray(activeModeData?.data?.questions)
+    ? activeModeData.data.questions.length
+    : null;
+  // A generated activity carries the exact inputs used for its generation.
+  // Prefer those inputs when rehydrating the same activity after a refresh.
+  const config = {
+    ...state,
+    ...settings,
+    syllabus: activeModeData?.syllabus || settings.syllabus || state.syllabus || "",
+    fileName: activeModeData?.fileName || settings.fileName || state.fileName || "No file selected",
+    count: activeModeData?.count
+      ? String(activeModeData.count)
+      : (generatedQuestionCount ? String(generatedQuestionCount) : (settings.count || state.count || "6")),
+    duration: activeModeData?.duration || settings.duration || state.duration || "30",
+    level: activeModeData?.level || settings.level || state.level || "university",
+    questionType: activeModeData?.questionType || settings.questionType || state.questionType || "auto",
+    difficulty: activeModeData?.difficulty || settings.difficulty || state.difficulty || "mixed"
+  };
   isRestoringSession = true;
   try {
     syllabusInput.value = typeof config.syllabus === "string" ? config.syllabus : "";
@@ -509,6 +527,15 @@ generateBtn.addEventListener("click", async () => {
     syllabusInput.focus();
     return;
   }
+  const generationConfig = {
+    syllabus,
+    count: Number(countSelect.value) || 6,
+    duration: Number(durationSelect?.value) || 30,
+    level: levelSelect?.value || "university",
+    questionType: questionTypeSelect?.value || "auto",
+    difficulty: difficultySelect?.value || "mixed",
+    fileName: fileName.textContent || "No file selected"
+  };
   persistSessionSettings();
   saveAppSession();
   if (activeMode === "test") {
@@ -528,12 +555,12 @@ generateBtn.addEventListener("click", async () => {
     if (!currentSession?.access_token) throw new Error("Sign in before generating a study set.");
     const { data, error } = await supabase.functions.invoke("generate-study-set", {
       body: {
-        syllabus,
+        syllabus: generationConfig.syllabus,
         mode: activeMode,
-        count: Number(countSelect.value),
-        level: levelSelect?.value || "university",
-        questionType: questionTypeSelect?.value || "auto",
-        difficulty: difficultySelect?.value || "mixed"
+        count: generationConfig.count,
+        level: generationConfig.level,
+        questionType: generationConfig.questionType,
+        difficulty: generationConfig.difficulty
       }
     });
     if (error) {
@@ -549,8 +576,13 @@ generateBtn.addEventListener("click", async () => {
     if (!(activeMode === "code" && data.available === false)) {
       modeData.set(activeMode, {
         data,
-        questionType: questionTypeSelect?.value || "auto",
-        difficulty: difficultySelect?.value || "mixed",
+        syllabus: generationConfig.syllabus,
+        fileName: generationConfig.fileName,
+        count: generationConfig.count,
+        duration: generationConfig.duration,
+        level: generationConfig.level,
+        questionType: generationConfig.questionType,
+        difficulty: generationConfig.difficulty,
         ui: {}
       });
     }
