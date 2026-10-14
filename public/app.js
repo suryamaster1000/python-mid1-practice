@@ -1038,6 +1038,39 @@ window.addEventListener("pagehide", () => {
   saveAppSession();
 });
 
+function reapplyStoredSessionSettings() {
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(SESSION_SETTINGS_KEY) || "null");
+    if (!saved || typeof saved !== "object") return;
+    if (typeof saved.syllabus === "string") syllabusInput.value = saved.syllabus;
+    if (saved.fileName) fileName.textContent = saved.fileName;
+    if (saved.count && [...countSelect.options].some(option => option.value === String(saved.count))) {
+      countSelect.value = String(saved.count);
+    }
+    if (durationSelect && saved.duration && [...durationSelect.options].some(option => option.value === String(saved.duration))) {
+      durationSelect.value = String(saved.duration);
+    }
+    if (levelSelect && saved.level && [...levelSelect.options].some(option => option.value === String(saved.level))) {
+      levelSelect.value = String(saved.level);
+    }
+    if (questionTypeSelect && saved.questionType && [...questionTypeSelect.options].some(option => option.value === String(saved.questionType))) {
+      questionTypeSelect.value = String(saved.questionType);
+    }
+    if (difficultySelect && saved.difficulty && [...difficultySelect.options].some(option => option.value === String(saved.difficulty))) {
+      difficultySelect.value = String(saved.difficulty);
+    }
+    updateCount();
+  } catch (error) {
+    console.warn("Could not reapply temporary session settings.", error);
+  }
+}
+
+// Apply after the browser has completed its own form-control restoration on reload.
+window.addEventListener("pageshow", () => {
+  setTimeout(reapplyStoredSessionSettings, 0);
+  setTimeout(reapplyStoredSessionSettings, 150);
+});
+
 function runCode(code, problem, button, output) {
   button.disabled = true;
   output.className = "run-output";
